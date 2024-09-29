@@ -22,7 +22,7 @@ from typing import Optional
 
 import torch
 import torch.nn as nn
-from torch.cuda.amp import custom_fwd
+from torch.amp import custom_fwd
 from torch.nn.functional import conv2d
 
 
@@ -40,7 +40,7 @@ class Whitening2d(nn.Module):
         self.output_dim = output_dim
         self.eps = eps
 
-    @custom_fwd(cast_inputs=torch.float32)
+    @custom_fwd(cast_inputs=torch.float32, device_type='cuda')
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """Performs whitening using the Cholesky decomposition.
 
@@ -217,7 +217,7 @@ class IterNorm(torch.nn.Module):
             torch.nn.init.ones_(self.weight)
             torch.nn.init.zeros_(self.bias)
 
-    @custom_fwd(cast_inputs=torch.float32)
+    @custom_fwd(cast_inputs=torch.float32, device_type='cuda')
     def forward(self, X: torch.Tensor) -> torch.Tensor:
         X_hat = iterative_normalization_py.apply(
             X,
