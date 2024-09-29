@@ -28,6 +28,14 @@ _N_CLASSES_PER_DATASET = {
     "imagenet100": 100,
 }
 
+_N_INSTANCES_PER_DATASET = {
+    "cifar10": 50000,
+    "cifar100": 50000,
+    # "stl10": 10, # To-DO update
+    # "imagenet": 1000,
+    # "imagenet100": 100,
+}
+
 _SUPPORTED_DATASETS = [
     "cifar10",
     "cifar100",
@@ -126,6 +134,7 @@ def parse_cfg(cfg: omegaconf.DictConfig):
     # extra processing
     if cfg.data.dataset in _N_CLASSES_PER_DATASET:
         cfg.data.num_classes = _N_CLASSES_PER_DATASET[cfg.data.dataset]
+        cfg.data.num_instances = _N_INSTANCES_PER_DATASET[cfg.data.dataset]
     else:
         # hack to maintain the current pipeline
         # even if the custom dataset doesn't have any labels
