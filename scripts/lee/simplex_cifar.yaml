@@ -1,6 +1,6 @@
 defaults:
   - _self_
-  - augmentations: asymmetric.yaml
+  - augmentations: symmetric_week_lee.yaml
   - wandb: private.yaml
   - override hydra/hydra_logging: disabled
   - override hydra/job_logging: disabled
@@ -11,23 +11,23 @@ hydra:
   run:
     dir: .
 
-name: "simplex-cifar10" # change here for cifar100
+name: "simplex-cifar100"
 method: "simplex"
 backbone:
   name: "resnet18"
 method_kwargs:
-  proj_hidden_dim: 128 # 2024
-  proj_output_dim: 128 # 2024
+  proj_hidden_dim: 2024
+  proj_output_dim: 2024
   p: 2
 data:
-  dataset: cifar10 # change here for cifar100
+  dataset: cifar100
   train_path: "./datasets"
   val_path: "./datasets"
   format: "image_folder"
   num_workers: 2
 optimizer:
   name: "lars"
-  batch_size: 256
+  batch_size: 128 # 32, 128, 512
   lr: 0.3
   classifier_lr: 0.1
   weight_decay: 1e-4
