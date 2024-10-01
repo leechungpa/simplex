@@ -17,6 +17,6 @@
   crop_size: 32
   num_crops: 2
   solarization:
-    prob: 0.2
+    prob: 0.0
   equalization:
-    prob: 0.5
+    prob: 0.0
