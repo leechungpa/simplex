@@ -29,11 +29,11 @@ _N_CLASSES_PER_DATASET = {
 }
 
 _N_INSTANCES_PER_DATASET = {
-    "cifar10": 50000,
-    "cifar100": 50000,
-    # "stl10": 10, # To-DO update
-    # "imagenet": 1000,
-    # "imagenet100": 100,
+    "cifar10": 45000,
+    "cifar100": 45000,
+    # "stl10": _, # To-DO update
+    # "imagenet": _,
+    "imagenet100": 126689,
 }
 
 _SUPPORTED_DATASETS = [
