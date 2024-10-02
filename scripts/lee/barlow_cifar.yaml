@@ -16,8 +16,8 @@ method: "barlow_twins"
 backbone:
   name: "resnet18"
 method_kwargs:
-  proj_hidden_dim: 2024
-  proj_output_dim: 2024
+  proj_hidden_dim: 2048
+  proj_output_dim: 2048
   scale_loss: 0.1
 data:
   dataset: cifar100
