@@ -12,11 +12,11 @@
     prob: 0.2
   gaussian_blur:
     prob: 0.5
-  solarization:
-    prob: 0.0
-  equalization:
-    prob: 0.0
   horizontal_flip:
     prob: 0.5
   crop_size: 32
   num_crops: 2
+  solarization:
+    prob: 0.0
+  equalization:
+    prob: 0.0
