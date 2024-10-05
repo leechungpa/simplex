@@ -169,3 +169,4 @@ cython_debug/
 
 scripts/lee/_*
 scripts/lee/wandb/_*
+.gitignore
