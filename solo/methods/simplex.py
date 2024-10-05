@@ -133,6 +133,6 @@ class Simplex(BaseMethod):
         # ------- barlow twins loss -------
         simplex_loss = simplex_loss_func(z1, z2, k=self.parm_k, p=self.parm_p)
 
-        self.log("train_simplex_loss", simplex_loss, on_epoch=True, sync_dist=True)
+        self.log("train_loss", simplex_loss, on_epoch=True, sync_dist=True)
 
         return simplex_loss + class_loss

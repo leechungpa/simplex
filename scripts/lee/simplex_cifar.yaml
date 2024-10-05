@@ -1,6 +1,6 @@
 defaults:
   - _self_
-  - augmentations: asymmetric.yaml
+  - augmentations: symmetric_week_lee.yaml
   - wandb: private.yaml
   - override hydra/hydra_logging: disabled
   - override hydra/job_logging: disabled
@@ -16,8 +16,8 @@ method: "simplex"
 backbone:
   name: "resnet18"
 method_kwargs:
-  proj_hidden_dim: 128 # 2024
-  proj_output_dim: 128 # 2024
+  proj_hidden_dim: 2048
+  proj_output_dim: 2048
   p: 2
 data:
   dataset: cifar100 # change here for cifar100
@@ -27,7 +27,7 @@ data:
   num_workers: 2
 optimizer:
   name: "lars"
-  batch_size: 256
+  batch_size: 16 # 32, 128, 512
   lr: 0.3
   classifier_lr: 0.1
   weight_decay: 1e-4
@@ -45,7 +45,7 @@ auto_resume:
   enabled: True
 
 # overwrite PL stuff
-max_epochs: 1000
+max_epochs: 400
 devices: [0]
 sync_batchnorm: True
 accelerator: "gpu"

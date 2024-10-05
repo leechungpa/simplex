@@ -220,6 +220,7 @@ def main(cfg: DictConfig):
         {
             "logger": wandb_logger if cfg.wandb.enabled else None,
             "callbacks": callbacks,
+            # "fp16": False,
             "enable_checkpointing": False,
             "strategy": DDPStrategy(find_unused_parameters=False)
             if cfg.strategy == "ddp"

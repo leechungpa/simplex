@@ -129,7 +129,7 @@ class SimCLR(BaseMethod):
         indexes = batch[0]
 
         out = super().training_step(batch, batch_idx)
-        class_loss = out["loss"]
+        class_loss = out["loss"]   # classification loss
         z = torch.cat(out["z"])
 
         # ------- contrastive loss -------
@@ -142,6 +142,6 @@ class SimCLR(BaseMethod):
             temperature=self.temperature,
         )
 
-        self.log("train_nce_loss", nce_loss, on_epoch=True, sync_dist=True)
+        self.log("train_loss", nce_loss, on_epoch=True, sync_dist=True)
 
-        return nce_loss + class_loss
+        return nce_loss + class_loss   # SimCLR loss + classification loss

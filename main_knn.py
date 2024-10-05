@@ -19,6 +19,7 @@
 
 import json
 import os
+import wandb
 from pathlib import Path
 from typing import Tuple
 
@@ -36,6 +37,7 @@ from solo.data.classification_dataloader import (
 )
 from solo.methods import METHODS
 from solo.utils.knn import WeightedKNNClassifier
+from lightning.pytorch.loggers.wandb import WandbLogger
 
 
 @torch.no_grad()
@@ -119,6 +121,19 @@ def run_knn(
 def main():
     args = parse_args_knn()
 
+    wandb_run_id = None
+    if True:
+        wandb_logger = WandbLogger(
+            name="simplex-knn",
+            project="simplex-loss-v2",
+            entity="sehee0706-yonsei-university",
+            # offline=args.wandb.offline,
+            resume="allow" if wandb_run_id else None,
+            id=wandb_run_id,
+        )
+        # wandb_logger.watch(model, log="gradients", log_freq=100)
+        # wandb_logger.log_hyperparams(OmegaConf.to_container(args))
+
     # build paths
     ckpt_dir = Path(args.pretrained_checkpoint_dir)
     args_path = ckpt_dir / "args.json"
@@ -175,8 +190,18 @@ def main():
                         T=T,
                         distance_fx=distance_fx,
                     )
+
                     print(f"Result: acc@1={acc1}, acc@5={acc5}")
 
+                    wandb_logger.log_metrics({
+                        # "feat_type": feat_type,
+                        # "k": k,
+                        # "T": T,
+                        # "distance_fx": distance_fx,
+                        "acc@1": acc1,
+                        "acc@5": acc5
+                    })
+    # wandb_logger.experiment.finish()
 
 if __name__ == "__main__":
     main()
