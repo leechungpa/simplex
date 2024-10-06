@@ -1,11 +1,11 @@
-CUDA_VISIBLE_DEVICES=1 python3 main_knn.py \
-    --dataset cifar100 \
+CUDA_VISIBLE_DEVICES=3 python3 main_knn.py \
+    --dataset cifar10 \
     --train_data_path ./datasets \
     --val_data_path ./datasets \
     --batch_size 32 \
     --num_workers 1 \
-    --pretrained_checkpoint_dir /home/sehee0706/simplex/trained_models/barlow_twins/yza9mcs0 \
-    --k 1 \
+    --pretrained_checkpoint_dir /home/sehee0706/simplex/trained_models/simplex/95sr1xp7 \
     --temperature 0.01 0.02 0.05 0.07 0.1 0.2 0.5 1 \
     --feature_type backbone projector \
-    --distance_function euclidean cosine
+    --distance_function euclidean cosine \
+    --k 20

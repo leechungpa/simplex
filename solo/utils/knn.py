@@ -58,6 +58,7 @@ class WeightedKNNClassifier(Metric):
         self.distance_fx = distance_fx
         self.epsilon = epsilon
 
+        # memory bank
         self.add_state("train_features", default=[], persistent=False)
         self.add_state("train_targets", default=[], persistent=False)
         self.add_state("test_features", default=[], persistent=False)
@@ -119,7 +120,7 @@ class WeightedKNNClassifier(Metric):
         num_classes = torch.unique(test_targets).numel()
         num_train_images = train_targets.size(0)
         num_test_images = test_targets.size(0)
-        num_train_images = train_targets.size(0)
+        
         chunk_size = min(
             max(1, self.max_distance_matrix_size // num_train_images),
             num_test_images,
