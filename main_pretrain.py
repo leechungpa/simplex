@@ -19,6 +19,7 @@
 
 import inspect
 import os
+import datetime
 
 import hydra
 import torch
@@ -176,9 +177,10 @@ def main(cfg: DictConfig):
     callbacks = []
 
     if cfg.checkpoint.enabled:
+        current_time = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
         ckpt = Checkpointer(
             cfg,
-            logdir=os.path.join(cfg.checkpoint.dir, cfg.method),
+            logdir=os.path.join(cfg.checkpoint.dir, cfg.method, current_time),
             frequency=cfg.checkpoint.frequency,
             keep_prev=cfg.checkpoint.keep_prev,
         )
@@ -220,6 +222,7 @@ def main(cfg: DictConfig):
         {
             "logger": wandb_logger if cfg.wandb.enabled else None,
             "callbacks": callbacks,
+            # "fp16": False,
             "enable_checkpointing": False,
             "strategy": DDPStrategy(find_unused_parameters=False)
             if cfg.strategy == "ddp"

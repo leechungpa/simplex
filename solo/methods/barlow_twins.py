@@ -124,6 +124,6 @@ class BarlowTwins(BaseMethod):
         # ------- barlow twins loss -------
         barlow_loss = barlow_loss_func(z1, z2, lamb=self.lamb, scale_loss=self.scale_loss)
 
-        self.log("train_barlow_loss", barlow_loss, on_epoch=True, sync_dist=True)
+        self.log("train_loss", barlow_loss, on_epoch=True, sync_dist=True)
 
         return barlow_loss + class_loss

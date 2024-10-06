@@ -38,6 +38,7 @@ from solo.methods import METHODS
 from solo.utils.knn import WeightedKNNClassifier
 
 
+
 @torch.no_grad()
 def extract_features(loader: DataLoader, model: nn.Module) -> Tuple[torch.Tensor]:
     """Extract features from a data loader using a model.
@@ -175,8 +176,10 @@ def main():
                         T=T,
                         distance_fx=distance_fx,
                     )
+
                     print(f"Result: acc@1={acc1}, acc@5={acc5}")
 
+                    
 
 if __name__ == "__main__":
     main()
