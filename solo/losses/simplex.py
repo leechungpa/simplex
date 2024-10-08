@@ -20,24 +20,23 @@
 import torch
 import torch.nn.functional as F
 
-import torch.distributed as dist
-
 
 def simplex_loss_func(
-    z1: torch.Tensor, z2: torch.Tensor, k: int, p: int
+    z1: torch.Tensor, z2: torch.Tensor, k: int, p: int, use_relu: bool = False
 ) -> torch.Tensor:
-    """Computes Simplex' loss given batch of projected features z1 from view 1 and
+    """Computes Simplex loss given batch of projected features z1 from view 1 and
     projected features z2 from view 2.
 
     Args:
         z1 (torch.Tensor): NxD Tensor containing projected features from view 1.
         z2 (torch.Tensor): NxD Tensor containing projected features from view 2.
-        lamb (float, optional): off-diagonal scaling factor for the cross-covariance matrix.
-            Defaults to 5e-3.
-        scale_loss (float, optional): final scaling factor of the loss. Defaults to 0.025.
+        k (int): 
+        p (int):
+        use_relu (bool, optional): Deafult value is False, for the compatibility
+            with the previous codes.
 
     Returns:
-        torch.Tensor: Barlow Twins' loss.
+        torch.Tensor: Simplex loss.
     """
 
     N, _ = z1.size()
@@ -50,7 +49,14 @@ def simplex_loss_func(
     pos_mask = torch.eye(N, device=similiarity.device)
     neg_mask = torch.ones(N, N, device=similiarity.device) - pos_mask
 
-    similiarity = (similiarity - pos_mask + (neg_mask/(k-1))).pow(p)
+    similiarity = ( pos_mask - (neg_mask/(k-1)) - similiarity)
+    if use_relu:
+        # Note that the inner product of normalized positive pairs always has
+        # non-negative value.
+        similiarity = F.relu(similiarity)
+
+    similiarity = similiarity.pow(p)
+
     loss = similiarity*pos_mask/N + similiarity*neg_mask/N/(N-1)
 
     return loss.sum()
