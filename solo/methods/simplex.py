@@ -35,10 +35,7 @@ class Simplex(BaseMethod):
             method_kwargs:
                 proj_hidden_dim (int): number of neurons of the hidden layers of the projector.
                 proj_output_dim (int): number of dimensions of projected features.
-                lamb (float): off-diagonal scaling factor for the cross-covariance matrix.
-                scale_loss (float): scaling factor of the loss.
         """
-
         super().__init__(cfg)
 
         if "k" in cfg.method_kwargs.keys():
@@ -59,10 +56,6 @@ class Simplex(BaseMethod):
         # projector
         self.projector = nn.Sequential(
             nn.Linear(self.features_dim, proj_hidden_dim),
-            nn.BatchNorm1d(proj_hidden_dim),
-            nn.ReLU(),
-            nn.Linear(proj_hidden_dim, proj_hidden_dim),
-            nn.BatchNorm1d(proj_hidden_dim),
             nn.ReLU(),
             nn.Linear(proj_hidden_dim, proj_output_dim),
         )
@@ -130,7 +123,7 @@ class Simplex(BaseMethod):
         class_loss = out["loss"]
         z1, z2 = out["z"]
 
-        # ------- barlow twins loss -------
+        # ------- simplex loss -------
         simplex_loss = simplex_loss_func(z1, z2, k=self.parm_k, p=self.parm_p)
 
         self.log("train_loss", simplex_loss, on_epoch=True, sync_dist=True)
