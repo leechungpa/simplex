@@ -1,0 +1,11 @@
+CUDA_VISIBLE_DEVICES=3 python3 main_knn.py \
+    --dataset cifar10 \
+    --train_data_path /data/files/torchvision \
+    --val_data_path /data/files/torchvision \
+    --batch_size 32 \
+    --num_workers 1 \
+    --temperature 0.01 0.02 0.05 0.07 0.1 0.2 0.5 1 \
+    --feature_type backbone projector \
+    --distance_function euclidean cosine \
+    --k 20 \
+    --pretrained_checkpoint_dir # --- trained dir_path ---
