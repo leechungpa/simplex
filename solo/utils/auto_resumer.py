@@ -26,6 +26,8 @@ class AutoResumer:
         "wandb.project",
         "wandb.entity",
         "pretrained_feature_extractor",
+        "method_kwargs.k",
+        "method_kwargs.p",
     ]
 
     def __init__(
@@ -72,7 +74,7 @@ class AutoResumer:
         current_time = datetime.now()
 
         candidates = []
-        for rootdir, _, files in os.walk(self.checkpoint_dir):
+        for rootdir, dirs, files in os.walk(self.checkpoint_dir):
             rootdir = Path(rootdir)
             if files:
                 # skip checkpoints that are empty

@@ -27,7 +27,7 @@ data:
   num_workers: 2
 optimizer:
   name: "lars"
-  batch_size: 64 # 32, 128, 512
+  batch_size: 16 # 32, 128, 512
   lr: 0.3
   classifier_lr: 0.1
   weight_decay: 1e-4

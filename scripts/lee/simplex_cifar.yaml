@@ -19,6 +19,7 @@ method_kwargs:
   proj_hidden_dim: 2048
   proj_output_dim: 2048
   p: 2
+  k: 100
 data:
   dataset: cifar100 # change here for cifar100
   train_path: "./datasets"
@@ -27,7 +28,7 @@ data:
   num_workers: 2
 optimizer:
   name: "lars"
-  batch_size: 64 # 32, 128, 512
+  batch_size: 16 # 32, 128, 512
   lr: 0.3
   classifier_lr: 0.1
   weight_decay: 1e-4
