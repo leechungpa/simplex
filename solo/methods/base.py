@@ -57,6 +57,7 @@ from solo.utils.lr_scheduler import LinearWarmupCosineAnnealingLR
 from solo.utils.metrics import accuracy_at_k, weighted_mean
 from solo.utils.misc import omegaconf_select, remove_bias_and_norm_from_weight_decay
 from solo.utils.momentum import MomentumUpdater, initialize_momentum_params
+from solo.losses.simplex import simplex_loss_func
 
 
 def static_lr(
@@ -256,6 +257,9 @@ class BaseMethod(pl.LightningModule):
         if self.knn_eval:
             self.knn = WeightedKNNClassifier(k=self.knn_k, distance_fx=cfg.knn_eval.distance_func)
 
+        # simplex-loss related
+        self.add_simplex_loss: dict = cfg.add_simplex_loss
+
         # for performance
         self.no_channel_last = cfg.performance.disable_channel_last
 
@@ -307,6 +311,14 @@ class BaseMethod(pl.LightningModule):
 
         # default empty parameters for method-specific kwargs
         cfg.method_kwargs = omegaconf_select(cfg, "method_kwargs", {})
+
+        # default empty parameters for adding_simplex_loss
+        cfg.add_simplex_loss = omegaconf_select(cfg, "add_simplex_loss", {})
+        cfg.add_simplex_loss.enabled = omegaconf_select(cfg, "add_simplex_loss.enabled", False)
+        cfg.add_simplex_loss.weight = omegaconf_select(cfg, "add_simplex_loss.weight", 1.0)
+        cfg.add_simplex_loss.k = omegaconf_select(cfg, "add_simplex_loss.k", 100)
+        cfg.add_simplex_loss.p = omegaconf_select(cfg, "add_simplex_loss.p", 2)
+        cfg.add_simplex_loss.use_relu = omegaconf_select(cfg, "add_simplex_loss.use_relu", False)
 
         return cfg
 
@@ -527,6 +539,17 @@ class BaseMethod(pl.LightningModule):
             "train_acc1": outs["acc1"],
             "train_acc5": outs["acc5"],
         }
+
+        if self.add_simplex_loss.enabled:
+            z1, z2 = outs["z"]
+            simplex_loss = simplex_loss_func(
+                z1, z2,
+                k=self.add_simplex_loss.k, p=self.add_simplex_loss.p,
+                use_relu=self.add_simplex_loss.use_relu
+            )
+            
+            metrics["simplex_loss"] = simplex_loss
+            outs["loss"] = outs["loss"] + simplex_loss*self.add_simplex_loss.weight
 
         self.log_dict(metrics, on_epoch=True, sync_dist=True)
 
