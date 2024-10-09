@@ -26,6 +26,11 @@ class AutoResumer:
         "wandb.project",
         "wandb.entity",
         "pretrained_feature_extractor",
+        "add_simplex_loss.enabled",
+        "add_simplex_loss.weight",
+        "add_simplex_loss.p",
+        "add_simplex_loss.k",
+        "add_simplex_loss.use_relu",
     ]
 
     def __init__(

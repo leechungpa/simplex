@@ -540,7 +540,7 @@ class BaseMethod(pl.LightningModule):
             "train_acc5": outs["acc5"],
         }
 
-        if self.add_simplex_loss:
+        if self.add_simplex_loss.enabled:
             z1, z2 = outs["z"]
             simplex_loss = simplex_loss_func(
                 z1, z2,
