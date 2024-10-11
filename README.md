@@ -13,11 +13,11 @@ pip3 install .
 
 # Pretrain
 CUDA_VISIBLE_DEVICES=2 python3 main_pretrain.py \
-    --config-path scripts/lee/ \
+    --config-path /path/to/config/ \
     --config-name simplex.yaml
 
 
-# Evaluation
+# Evaluation with k-NN (K-nearest neighbors)
 CUDA_VISIBLE_DEVICES=2 python3 main_knn.py \
     --dataset cifar10 \
     --train_data_path ./datasets \
@@ -29,6 +29,11 @@ CUDA_VISIBLE_DEVICES=2 python3 main_knn.py \
     --temperature 0.01 0.02 0.05 0.07 0.1 0.2 0.5 1 \
     --feature_type backbone projector \
     --distance_function euclidean cosine
+
+# Evaluation with Linear Probing
+CUDA_VISIBLE_DEVICES=3 python3 main_linear.py \
+    --config-path /path/to/config/ \
+    --config-name eval_linear.yaml
 ```
 
 ---

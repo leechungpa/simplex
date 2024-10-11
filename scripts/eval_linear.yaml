@@ -11,10 +11,10 @@ hydra:
     dir: .
 
 name: "simclr-linear" # job name
-pretrained_feature_extractor: # --- trained ckpt path ---
+pretrained_feature_extractor: /home/sehee0706/simplex/trained_models/simplex/95sr1xp7/simplex-cifar100-95sr1xp7-ep=390.ckpt # --- trained ckpt path ---
 backbone:
-  name: "resnet50"
-pretrain_method: "simclr"
+  name: "resnet18"
+pretrain_method: "barlow"
 data:
   dataset: cifar10
   train_path: "/data/files/torchvision"
