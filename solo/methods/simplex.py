@@ -49,6 +49,7 @@ class Simplex(BaseMethod):
                 raise ValueError("'method_kwargs.k' is needed.")
 
         self.parm_p: int = cfg.method_kwargs.p
+        self.parm_lamb: int = cfg.method_kwargs.lamb
 
         proj_hidden_dim: int = cfg.method_kwargs.proj_hidden_dim
         proj_output_dim: int = cfg.method_kwargs.proj_output_dim
@@ -76,8 +77,12 @@ class Simplex(BaseMethod):
         assert not omegaconf.OmegaConf.is_missing(cfg, "method_kwargs.proj_hidden_dim")
         assert not omegaconf.OmegaConf.is_missing(cfg, "method_kwargs.proj_output_dim")
 
-        cfg.method_kwargs.lamb = omegaconf_select(cfg, "method_kwargs.lamb", 0.0051)
-        cfg.method_kwargs.scale_loss = omegaconf_select(cfg, "method_kwargs.scale_loss", 0.024)
+        assert not omegaconf.OmegaConf.is_missing(cfg, "method_kwargs.p")
+        assert not omegaconf.OmegaConf.is_missing(cfg, "method_kwargs.lamb")
+        
+
+        # cfg.method_kwargs.lamb = omegaconf_select(cfg, "method_kwargs.lamb", 0.0051)
+        # cfg.method_kwargs.scale_loss = omegaconf_select(cfg, "method_kwargs.scale_loss", 0.024)
 
         return cfg
 
@@ -124,7 +129,7 @@ class Simplex(BaseMethod):
         z1, z2 = out["z"]
 
         # ------- simplex loss -------
-        simplex_loss = simplex_loss_func(z1, z2, k=self.parm_k, p=self.parm_p)
+        simplex_loss = simplex_loss_func(z1, z2, k=self.parm_k, p=self.parm_p, lamb=self.parm_lamb)
 
         self.log("train_loss", simplex_loss, on_epoch=True, sync_dist=True)
 
