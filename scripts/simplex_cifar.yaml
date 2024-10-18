@@ -21,7 +21,6 @@ method_kwargs:
   p: 2
   k: 45000
   lamb: 1.0
-  use_relu: False
   # rectify_small_neg_sim: False
   # rectify_small_neg_sim: False
 data:
