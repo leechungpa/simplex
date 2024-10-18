@@ -40,9 +40,9 @@ scheduler:
 checkpoint:
   enabled: True
   dir: "trained_models"
-  frequency: 10
+  frequency: 50
 auto_resume:
-  enabled: True
+  enabled: False
 
 # overwrite PL stuff
 max_epochs: 1000 # 200 400 1000
@@ -50,4 +50,4 @@ devices: [0]
 sync_batchnorm: True
 accelerator: "gpu"
 strategy: "ddp"
-precision: 16-mixed
+precision: 32-true

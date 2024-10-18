@@ -22,7 +22,9 @@ import torch.nn.functional as F
 
 
 def simplex_loss_func(
-    z1: torch.Tensor, z2: torch.Tensor, k: int, p: int, lamb: float, use_relu: bool = False
+    z1: torch.Tensor, z2: torch.Tensor,
+    k: int, p: int, lamb: float,
+    rectify_large_neg_sim: bool = False, rectify_small_neg_sim: bool = False,
 ) -> torch.Tensor:
     """Computes Simplex loss given batch of projected features z1 from view 1 and
     projected features z2 from view 2.
@@ -33,31 +35,32 @@ def simplex_loss_func(
         k (int): See the definition. 
         p (int): See the definition.
         lamb (float): See the definition.
-        use_relu (bool, optional): Deafult value is False, for the compatibility
-            with the previous codes.
+        rectify_large_neg_sim (bool, optional): Retify the negative similarity to 0,
+                                                    if it is larger than -1/(k-1).
+        rectify_small_neg_sim (bool, optional): Retify the negative similarity to 0,
+                                                    if it is smaller than -1/(k-1).
 
     Returns:
         torch.Tensor: Simplex loss.
     """
-
-    N, _ = z1.size()
-
     z1 = F.normalize(z1, dim=1)
     z2 = F.normalize(z2, dim=1)
 
     similiarity = torch.einsum("id, jd -> ij", z1, z2)
 
-    pos_mask = torch.eye(N, device=similiarity.device)
-    neg_mask = torch.ones(N, N, device=similiarity.device) - pos_mask
+    pos_mask = torch.eye(z1.size()[0], device=similiarity.device, dtype=torch.bool)
+    neg_mask = ~ pos_mask
 
-    similiarity = (similiarity - pos_mask + (neg_mask/(k-1)))
-    if use_relu:
-        # Note that the inner product of normalized positive pairs always has
-        # non-negative value.
-        similiarity = F.relu(similiarity)
+    similiarity[pos_mask] = similiarity[pos_mask] - 1
+    similiarity[neg_mask] = similiarity[neg_mask] + 1/(k-1)
+
+    if rectify_large_neg_sim:
+        similiarity[neg_mask] = -F.relu(-similiarity[neg_mask])
+    if rectify_small_neg_sim:
+        similiarity[neg_mask] = F.relu(similiarity[neg_mask])
 
     similiarity = similiarity.pow(p)
 
-    loss = similiarity*pos_mask/N + similiarity*neg_mask/N/(N-1)*lamb
+    loss = similiarity[pos_mask].mean() + similiarity[neg_mask].mean()*lamb
 
     return loss.sum()
