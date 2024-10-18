@@ -22,6 +22,8 @@ method_kwargs:
   k: 45000
   lamb: 1.0
   use_relu: False
+  # rectify_small_neg_sim: False
+  # rectify_small_neg_sim: False
 data:
   dataset: cifar100
   train_path: "/data/files/torchvision"
