@@ -20,6 +20,9 @@ method_kwargs:
   proj_output_dim: 2048
   p: 2
   k: 45000
+  lamb: 1.0
+  # rectify_small_neg_sim: False
+  # rectify_small_neg_sim: False
 data:
   dataset: cifar100
   train_path: # --- path to your training data ---
@@ -43,7 +46,7 @@ checkpoint:
   dir: # --- directory to save checkpoints ---
   frequency: 10
 auto_resume:
-  enabled: True
+  enabled: False
 
 # overwrite PL stuff
 max_epochs: 1000 # adjust based on your experiment (200 400 1000)
@@ -51,4 +54,4 @@ devices: [0]
 sync_batchnorm: True
 accelerator: "gpu"
 strategy: "ddp"
-precision: 16-mixed
+precision: 32-true

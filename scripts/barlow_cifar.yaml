@@ -42,7 +42,7 @@ checkpoint:
   dir: # --- directory to save checkpoints ---
   frequency: 10
 auto_resume:
-  enabled: True
+  enabled: False
 
 # overwrite PL stuff
 max_epochs: 1000 # adjust based on your experiment (200 400 1000)
@@ -50,4 +50,4 @@ devices: [0]
 sync_batchnorm: True
 accelerator: "gpu"
 strategy: "ddp"
-precision: 16-mixed
+precision: 32-true
