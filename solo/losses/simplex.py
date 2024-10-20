@@ -59,7 +59,7 @@ def simplex_loss_func(
     if rectify_small_neg_sim:
         similiarity[neg_mask] = F.relu(similiarity[neg_mask])
 
-    similiarity = similiarity.pow(p)
+    similiarity = similiarity.abs().pow(p)
 
     loss = similiarity[pos_mask].mean() + similiarity[neg_mask].mean()*lamb
 
