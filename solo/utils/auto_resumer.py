@@ -32,6 +32,8 @@ class AutoResumer:
         "add_simplex_loss.k",
         "add_simplex_loss.use_relu",
         "method_kwargs.k",
+        "method_kwargs.lamb",
+        "method_kwargs.p"
     ]
 
     def __init__(
