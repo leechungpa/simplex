@@ -9,3 +9,4 @@ scipy
 timm==0.9.2
 scikit-learn
 hydra-core
+timm==0.9.2
