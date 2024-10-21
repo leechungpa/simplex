@@ -25,6 +25,7 @@ import torch.nn as nn
 from solo.losses.simplex import simplex_loss_func
 from solo.methods.base import BaseMethod
 from solo.utils.misc import omegaconf_select
+import torch.nn.functional as F
 
 
 class Simplex(BaseMethod):
@@ -138,4 +139,18 @@ class Simplex(BaseMethod):
 
         self.log("train_loss", simplex_loss, on_epoch=True, sync_dist=True)
 
+
+        # ------- negative pair similarity -------
+        batch_size = z1.size(0)
+        
+        # z1.unsqueeze(1): (N, 1, D)
+        # z2.unsqueeze(0): (1, N, D)
+        similarity_matrix = F.cosine_similarity(z1.unsqueeze(1), z2.unsqueeze(0), dim = 2)   # (N, N)
+
+        mask = torch.eye(batch_size).bool()   # (N, N)
+        # similarity_matrix[~mask]: (N * (N - 1), )
+        negative_similarities = similarity_matrix[~mask].view(batch_size, -1)   # (N, N - 1)
+
+        avg_negative_similarity = negative_similarities.mean()
+        self.log("avg_negative_similarity", avg_negative_similarity, on_epoch=True, sync_dist=True)
         return simplex_loss + class_loss
