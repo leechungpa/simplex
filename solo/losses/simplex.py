@@ -43,6 +43,8 @@ def simplex_loss_func(
     Returns:
         torch.Tensor: Simplex loss.
     """
+    batch_size = z1.shape[0]
+
     z1 = F.normalize(z1, dim=1)
     z2 = F.normalize(z2, dim=1)
 
@@ -61,6 +63,6 @@ def simplex_loss_func(
 
     similiarity = similiarity.abs().pow(p)
 
-    loss = similiarity[pos_mask].mean() + similiarity[neg_mask].mean()*lamb
+    loss = similiarity[pos_mask].sum() + similiarity[neg_mask].sum()*lamb
 
-    return loss.sum()
+    return loss / batch_size**2
