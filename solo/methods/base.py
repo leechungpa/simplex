@@ -318,7 +318,7 @@ class BaseMethod(pl.LightningModule):
         cfg.add_simplex_loss.weight = omegaconf_select(cfg, "add_simplex_loss.weight", 1.0)
         cfg.add_simplex_loss.k = omegaconf_select(cfg, "add_simplex_loss.k", 100)
         cfg.add_simplex_loss.p = omegaconf_select(cfg, "add_simplex_loss.p", 2)
-        cfg.add_simplex_loss.use_relu = omegaconf_select(cfg, "add_simplex_loss.use_relu", False)
+        cfg.add_simplex_loss.rectify_small_neg_sim = omegaconf_select(cfg, "add_simplex_loss.rectify_small_neg_sim", False)
 
         return cfg
 
@@ -545,7 +545,7 @@ class BaseMethod(pl.LightningModule):
             simplex_loss = simplex_loss_func(
                 z1, z2,
                 k=self.add_simplex_loss.k, p=self.add_simplex_loss.p,
-                use_relu=self.add_simplex_loss.use_relu
+                rectify_small_neg_sim=self.add_simplex_loss.rectify_small_neg_sim
             )
             
             metrics["simplex_loss"] = simplex_loss
