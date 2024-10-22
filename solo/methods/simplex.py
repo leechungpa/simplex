@@ -25,8 +25,7 @@ import torch.nn as nn
 from solo.losses.simplex import simplex_loss_func
 from solo.methods.base import BaseMethod
 from solo.utils.misc import omegaconf_select
-import torch.nn.functional as F
-
+from solo.utils.uniformity import evaluate_avg_neg_similarity
 
 class Simplex(BaseMethod):
     def __init__(self, cfg: omegaconf.DictConfig):
@@ -64,6 +63,9 @@ class Simplex(BaseMethod):
             nn.ReLU(),
             nn.Linear(proj_hidden_dim, proj_output_dim),
         )
+
+        # turn off automatic_optimization
+        self.automatic_optimization = False
 
     @staticmethod
     def add_and_assert_specific_cfg(cfg: omegaconf.DictConfig) -> omegaconf.DictConfig:
@@ -126,6 +128,7 @@ class Simplex(BaseMethod):
         Returns:
             torch.Tensor: total loss composed of Barlow loss and classification loss.
         """
+        optimizer = self.optimizers()
 
         out = super().training_step(batch, batch_idx)
         class_loss = out["loss"]
@@ -139,18 +142,25 @@ class Simplex(BaseMethod):
 
         self.log("train_loss", simplex_loss, on_epoch=True, sync_dist=True)
 
+        # ------- negative pair similarity (before optimization) -------
+        with torch.no_grad():
+            avg_neg_similarity_before = evaluate_avg_neg_similarity(z1, z2)
+            self.log("avg_negative_similarity_before", avg_neg_similarity_before, on_epoch=True, sync_dist=True)
 
-        # ------- negative pair similarity -------
-        batch_size = z1.size(0)
-        
-        # z1.unsqueeze(1): (N, 1, D)
-        # z2.unsqueeze(0): (1, N, D)
-        similarity_matrix = F.cosine_similarity(z1.unsqueeze(1), z2.unsqueeze(0), dim = 2)   # (N, N)
+        # ------- manual optimization -------
+        optimizer.zero_grad()
+        self.manual_backward(simplex_loss + class_loss)
+        optimizer.step()
 
-        mask = torch.eye(batch_size).bool()   # (N, N)
-        # similarity_matrix[~mask]: (N * (N - 1), )
-        negative_similarities = similarity_matrix[~mask].view(batch_size, -1)   # (N, N - 1)
+        # ------- negative pair similarity (after optimization) -------
+        with torch.no_grad():
+            _, X, _ = batch
 
-        avg_negative_similarity = negative_similarities.mean()
-        self.log("avg_negative_similarity", avg_negative_similarity, on_epoch=True, sync_dist=True)
+            z1 = self.projector(self.backbone(X[0]))
+            z2 = self.projector(self.backbone(X[0]))
+
+            avg_neg_similarity_after = evaluate_avg_neg_similarity(z1, z2)
+            self.log("avg_negative_similarity_after", avg_neg_similarity_after, on_epoch=True, sync_dist=True)
+            self.log("avg_negative_similarity_diff", avg_neg_similarity_after - avg_neg_similarity_before, on_epoch=True, sync_dist=True)
+
         return simplex_loss + class_loss
