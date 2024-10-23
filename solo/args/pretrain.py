@@ -182,6 +182,8 @@ def parse_cfg(cfg: omegaconf.DictConfig):
         cfg.optimizer.kwargs.betas = omegaconf_select(cfg, "optimizer.kwargs.betas", [0.9, 0.999])
 
     # modify the job name
+    if omegaconf_select(cfg, "name_kwargs.add_method", default=False):
+        cfg.name = cfg.name + f"_{cfg.method}"
     if omegaconf_select(cfg, "name_kwargs.add_batch_size", default=False):
         cfg.name = cfg.name + f"_bsz{cfg.optimizer.batch_size}"
     if cfg.method == "simplex":
