@@ -257,8 +257,9 @@ class BaseMethod(pl.LightningModule):
         if self.knn_eval:
             self.knn = WeightedKNNClassifier(k=self.knn_k, distance_fx=cfg.knn_eval.distance_func)
 
-        # simplex-loss related
+        # For our research
         self.add_simplex_loss: dict = cfg.add_simplex_loss
+        self.evaluate_batch: dict = cfg.evaluate_batch
 
         # for performance
         self.no_channel_last = cfg.performance.disable_channel_last
@@ -319,6 +320,11 @@ class BaseMethod(pl.LightningModule):
         cfg.add_simplex_loss.k = omegaconf_select(cfg, "add_simplex_loss.k", 100)
         cfg.add_simplex_loss.p = omegaconf_select(cfg, "add_simplex_loss.p", 2)
         cfg.add_simplex_loss.rectify_small_neg_sim = omegaconf_select(cfg, "add_simplex_loss.rectify_small_neg_sim", False)
+
+        # default empty parameters for our research
+        cfg.evaluate_batch = omegaconf_select(cfg, "evaluate_batch", {})
+        cfg.evaluate_batch.enabled = omegaconf_select(cfg, "evaluate_batch.enabled", False)
+        cfg.evaluate_batch.type = omegaconf_select(cfg, "evaluate_batch.type", "neg_sim")
 
         return cfg
 
