@@ -156,7 +156,7 @@ class BaseMethod(pl.LightningModule):
                 https://pytorch.org/tutorials/intermediate/memory_format_tutorial.html#converting-existing-models
             accumulate_grad_batches (Union[int, None]): number of batches for gradient accumulation.
             num_large_crops (int): number of big crops.
-            num_small_crops (int): number of small crops .
+            num_small_crops (int): number of small crops.
 
         .. note::
             When using distributed data parallel, the batch size and the number of workers are

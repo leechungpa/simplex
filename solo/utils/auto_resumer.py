@@ -31,6 +31,9 @@ class AutoResumer:
         "add_simplex_loss.p",
         "add_simplex_loss.k",
         "add_simplex_loss.use_relu",
+        "method_kwargs.k",
+        "method_kwargs.lamb",
+        "method_kwargs.p"
     ]
 
     def __init__(
@@ -77,7 +80,7 @@ class AutoResumer:
         current_time = datetime.now()
 
         candidates = []
-        for rootdir, _, files in os.walk(self.checkpoint_dir):
+        for rootdir, dirs, files in os.walk(self.checkpoint_dir):
             rootdir = Path(rootdir)
             if files:
                 # skip checkpoints that are empty

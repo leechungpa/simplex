@@ -10,15 +10,15 @@ hydra:
   run:
     dir: .
 
-name: "simclr-linear" # job name
-pretrained_feature_extractor: # --- trained ckpt path ---
+name: # --- job name ---
+pretrained_feature_extractor: # --- path to your pretrained checkpoint ---
 backbone:
-  name: "resnet50"
-pretrain_method: "simclr"
+  name: "resnet18"
+pretrain_method: "barlow"
 data:
   dataset: cifar10
-  train_path: "/data/files/torchvision"
-  val_path: "/data/files/torchvision"
+  train_path: # --- path to your training data ---
+  val_path: # --- path to your validation data ---
   format: "image_folder"
   num_workers: 2
 optimizer:
@@ -31,7 +31,7 @@ scheduler:
   lr_decay_steps: [60, 80]
 checkpoint:
   enabled: True
-  dir: "trained_models"
+  dir: # --- directory to save checkpoints ---
   frequency: 1
 auto_resume:
   enabled: True

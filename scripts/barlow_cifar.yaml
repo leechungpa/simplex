@@ -1,7 +1,7 @@
 defaults:
   - _self_
   - augmentations: aug_0.yaml
-  - wandb: private.yaml
+  - wandb: # --- your WandB config file ---
   - override hydra/hydra_logging: disabled
   - override hydra/job_logging: disabled
 
@@ -11,7 +11,7 @@ hydra:
   run:
     dir: .
 
-name: "barlow_twins-cifar100" # job name
+name: # --- job name ---
 method: "barlow_twins"
 backbone:
   name: "resnet50"
@@ -21,13 +21,13 @@ method_kwargs:
   scale_loss: 0.1
 data:
   dataset: cifar100
-  train_path: "/data/files/torchvision"
-  val_path: "/data/files/torchvision"
+  train_path: # --- path to your training data ---
+  val_path: # --- path to your validation data ---
   format: "image_folder"
   num_workers: 2
 optimizer:
   name: "lars"
-  batch_size: 64 # 32, 64, 128, 256 512
+  batch_size: 64 # adjust based on your experiment (32, 64, 128, 256 512)
   lr: 0.3
   classifier_lr: 0.1
   weight_decay: 1e-4
@@ -39,13 +39,13 @@ scheduler:
   name: "warmup_cosine"
 checkpoint:
   enabled: True
-  dir: "trained_models"
-  frequency: 50
+  dir: # --- directory to save checkpoints ---
+  frequency: 10
 auto_resume:
   enabled: False
 
 # overwrite PL stuff
-max_epochs: 1000 # 200 400 1000
+max_epochs: 1000 # adjust based on your experiment (200 400 1000)
 devices: [0]
 sync_batchnorm: True
 accelerator: "gpu"
