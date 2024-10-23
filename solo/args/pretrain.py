@@ -181,4 +181,17 @@ def parse_cfg(cfg: omegaconf.DictConfig):
     elif cfg.optimizer.name == "adamw":
         cfg.optimizer.kwargs.betas = omegaconf_select(cfg, "optimizer.kwargs.betas", [0.9, 0.999])
 
+    # modify the job name
+    if omegaconf_select(cfg, "name_kwargs.add_batch_size", default=False):
+        cfg.name = cfg.name + f"_bsz{cfg.optimizer.batch_size}"
+    if cfg.method == "simplex":
+        if omegaconf_select(cfg, "name_kwargs.add_k", default=False):
+            cfg.name = cfg.name + f"_k{cfg.method_kwargs.k}"
+        if omegaconf_select(cfg, "name_kwargs.add_p", default=False):
+            cfg.name = cfg.name + f"_p{round(cfg.method_kwargs.p*100)}"
+        if omegaconf_select(cfg, "name_kwargs.add_lamb", default=False):
+            cfg.name = cfg.name + f"_lamb{round(cfg.method_kwargs.lamb*100)}"
+    if cfg.method == "simclr":
+        if omegaconf_select(cfg, "name_kwargs.add_temperature", default=False):
+            cfg.name = cfg.name + f"_t{round(cfg.method_kwargs.temperature*100)}"
     return cfg

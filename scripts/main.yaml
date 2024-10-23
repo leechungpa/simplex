@@ -11,8 +11,16 @@ hydra:
     dir: .
 
 ###############
-# Project name
+# job name
 name: # --- job name ---
+name_kwargs:
+  add_batch_size: Ture
+  # For simplex loss
+  add_k: False
+  add_p: False # round(p*100)
+  add_lamb: False # round(lamb*100)
+  # For simlcr loss
+  add_temperature: False # round(temperature*100)
 
 ###############
 # loss
