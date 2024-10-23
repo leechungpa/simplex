@@ -25,6 +25,7 @@ def simplex_loss_func(
     z1: torch.Tensor, z2: torch.Tensor,
     k: int, p: int, lamb: float,
     rectify_large_neg_sim: bool = False, rectify_small_neg_sim: bool = False,
+    unimodal: bool = True,
 ) -> torch.Tensor:
     """Computes Simplex loss given batch of projected features z1 from view 1 and
     projected features z2 from view 2.
@@ -43,15 +44,16 @@ def simplex_loss_func(
     Returns:
         torch.Tensor: Simplex loss.
     """
-    batch_size = z1.shape[0]
+    batch_size = z1.size(0) # B
 
-    z1 = F.normalize(z1, dim=1)
-    z2 = F.normalize(z2, dim=1)
+    pos_mask = torch.eye(batch_size, device=z1.device, dtype=torch.bool) # ( B, B )
+    neg_mask = ~ pos_mask # ( B, B )
 
-    similiarity = torch.einsum("id, jd -> ij", z1, z2)
+    # Calcuate the loss for both unimodal and bimodal CL
+    z1 = F.normalize(z1, dim=1) # ( B, proj_output_dim )
+    z2 = F.normalize(z2, dim=1) # ( B, proj_output_dim )
 
-    pos_mask = torch.eye(z1.size()[0], device=similiarity.device, dtype=torch.bool)
-    neg_mask = ~ pos_mask
+    similiarity = torch.einsum("id, jd -> ij", z1, z2) # ( B, B )
 
     similiarity[pos_mask] = similiarity[pos_mask] - 1
     similiarity[neg_mask] = similiarity[neg_mask] + 1/(k-1)
@@ -65,4 +67,25 @@ def simplex_loss_func(
 
     loss = similiarity[pos_mask].sum() + similiarity[neg_mask].sum()*lamb
 
-    return loss / batch_size**2
+    if unimodal:
+        # Calcuate the additional loss terms for unimodal CL
+        similiarity_z1 = torch.einsum("id, jd -> ij", z1, z1) # ( B, B )
+        similiarity_z2 = torch.einsum("id, jd -> ij", z2, z2) # ( B, B )
+
+        similiarity_z1[neg_mask] = similiarity_z1[neg_mask] + 1/(k-1)
+        similiarity_z2[neg_mask] = similiarity_z2[neg_mask] + 1/(k-1)
+
+        if rectify_large_neg_sim:
+            similiarity_z1[neg_mask] = -F.relu(-similiarity_z1[neg_mask])
+            similiarity_z2[neg_mask] = -F.relu(-similiarity_z2[neg_mask])
+        if rectify_small_neg_sim:
+            similiarity_z1[neg_mask] = F.relu(similiarity_z1[neg_mask])
+            similiarity_z2[neg_mask] = F.relu(similiarity_z2[neg_mask])
+
+        similiarity_z1 = similiarity_z1.abs().pow(p)
+        similiarity_z2 = similiarity_z2.abs().pow(p)
+
+        loss = loss + similiarity_z1[neg_mask].sum()*lamb/2 + similiarity_z2[neg_mask].sum()*lamb/2
+        print("hellow")
+
+    return loss / batch_size
