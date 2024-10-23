@@ -324,7 +324,8 @@ class BaseMethod(pl.LightningModule):
         # default empty parameters for our research
         cfg.evaluate_batch = omegaconf_select(cfg, "evaluate_batch", {})
         cfg.evaluate_batch.enabled = omegaconf_select(cfg, "evaluate_batch.enabled", False)
-        cfg.evaluate_batch.type = omegaconf_select(cfg, "evaluate_batch.type", "neg_sim")
+        cfg.evaluate_batch.type = omegaconf_select(cfg, "evaluate_batch.type", "all")
+        cfg.evaluate_batch.skip_before_optm = omegaconf_select(cfg, "evaluate_batch.skip_before_optm", False)
 
         return cfg
 

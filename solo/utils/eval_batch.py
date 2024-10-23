@@ -24,54 +24,81 @@ def _evaluate_batch(func):
         if self.evaluate_batch.enable:
             optimizer = self.optimizers()
 
-            # ------- negative pair similarity (before optimization) -------
-            with torch.no_grad():
-                _, X, _ = batch
+            _, X, _ = batch
 
-                z1 = self.projector(self.backbone(X[0]))
-                z2 = self.projector(self.backbone(X[1]))
+            # ------- before optimization -------
+            if not self.evaluate_batch.skip_before_optm:
+                with torch.no_grad():
+                    z1 = F.normalize(self.projector(self.backbone(X[0]))) # ( B, proj_output_dim )
+                    z2 = F.normalize(self.projector(self.backbone(X[1]))) # ( B, proj_output_dim )
 
-                uniformity_before = evaluate_avg_neg_similarity(z1, z2)
-                self.log("uniformity_before", uniformity_before, on_epoch=True, sync_dist=True)
-            
-            # ------- forward loss -------
+                    # TBD: if self.evaluate_batch.type == "all":
+                    result_before = {
+                        "alignment": eval_alignment(z1, z2),
+                        "uniformity": (eval_uniformity(z1)+eval_uniformity(z2)) / 2,
+                        "neg_similarity": eval_neg_similarity(z1, z2),
+                        "neg_similarity_all": eval_neg_similarity(z1, z2)
+                    }
+                    for key, value in result_before.items():
+                        self.log(key+"_before", value, on_epoch=True, sync_dist=True)
+
+                    del z1, z2
+
+            # ------- forward and backward -------
             loss = func(self, batch, *args, **kargs)
 
-            # ------- backward loss -------
             optimizer.zero_grad()
             self.manual_backward(loss)
             optimizer.step()
 
-            # ------- negative pair similarity (after optimization) -------
+            # ------- after optimization -------
             with torch.no_grad():
-                z1 = self.projector(self.backbone(X[0]))
-                z2 = self.projector(self.backbone(X[1]))
+                z1 = F.normalize(self.projector(self.backbone(X[0]))) # ( B, proj_output_dim )
+                z2 = F.normalize(self.projector(self.backbone(X[1]))) # ( B, proj_output_dim )
+                
+                # TBD: if self.evaluate_batch.type == "all":
+                result_after = {
+                    "alignment": eval_alignment(z1, z2),
+                    "uniformity": (eval_uniformity(z1)+eval_uniformity(z2)) / 2,
+                    "neg_similarity": eval_neg_similarity(z1, z2),
+                    "neg_similarity_all": eval_neg_similarity(z1, z2)
+                }
+                for key, value in result_after.items():
+                    self.log(key+"_after", value, on_epoch=True, sync_dist=True)
+                    if not self.evaluate_batch.skip_before_optm:
+                        self.log(key+"_diff", value - result_before[key], on_epoch=True, sync_dist=True)
 
-                uniformity_after = evaluate_avg_neg_similarity(z1, z2)
-                self.log("uniformity_after", uniformity_after, on_epoch=True, sync_dist=True)
-                self.log("uniformity_diff", uniformity_after - uniformity_before, on_epoch=True, sync_dist=True)
+                del z1, z2
+
             return loss
         else:
             return func(self, batch, *args, **kargs)
     return wrapper
 
 
-def evaluate_avg_neg_similarity(z1, z2):
+def eval_neg_similarity(z1, z2):
     """Evaluate the average of (cosine) similarity of negative pairs.
 
     Args:
         z1: (N, D)
         z2: (N, D)
     """
-    batch_size = z1.size(0)
-    
     # z1.unsqueeze(1): (N, 1, D)
     # z2.unsqueeze(0): (1, N, D)
     similarity_matrix = F.cosine_similarity(z1.unsqueeze(1), z2.unsqueeze(0), dim = 2)  # (N, N)
 
-    mask = torch.eye(batch_size, dtype=torch.bool)  # (N, N)
+    mask = torch.eye(z1.size(0), dtype=torch.bool)  # (N, N)
 
-    # similarity_matrix[~mask]: ( N*(N-1), )
-    avg_neg_similarity = similarity_matrix[~mask].mean()
+    return similarity_matrix[~mask].mean() # similarity_matrix[~mask]: ( N*(N-1), )
 
-    return avg_neg_similarity
+
+
+
+
+
+# https://github.com/ssnl/align_uniform/blob/master/align_uniform/__init__.py#L4-L9
+def eval_alignment(x, y, alpha=2):
+    return (x - y).norm(p=2, dim=1).pow(alpha).mean()
+
+def eval_uniformity(x, t=2):
+    return torch.pdist(x, p=2).pow(2).mul(-t).exp().mean().log()
