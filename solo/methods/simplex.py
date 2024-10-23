@@ -38,15 +38,13 @@ class Simplex(BaseMethod):
         """
         super().__init__(cfg)
 
-        if "k" in cfg.method_kwargs.keys():
+        if "k" is not None:
             self.parm_k: int = cfg.method_kwargs.k
-            print(f"Simplex loss k={self.parm_k}")
+        elif "num_instances" in cfg.data.keys():
+            self.parm_k = cfg.data.num_instances
         else:
-            if "num_instances" in cfg.data.keys():
-                self.parm_k = cfg.data.num_instances
-                print(f"Simplex loss k={self.parm_k}")
-            else:
-                raise ValueError("'method_kwargs.k' is needed.")
+            raise ValueError("'method_kwargs.k' is needed.")
+        print(f"Simplex loss k={self.parm_k}")
 
         self.parm_p: int = cfg.method_kwargs.p
         self.parm_lamb: int = cfg.method_kwargs.lamb
@@ -87,6 +85,8 @@ class Simplex(BaseMethod):
 
         assert not omegaconf.OmegaConf.is_missing(cfg, "method_kwargs.p")
         assert not omegaconf.OmegaConf.is_missing(cfg, "method_kwargs.lamb")
+
+        cfg.method_kwargs.k = omegaconf_select(cfg, "method_kwargs.k", None)
 
         cfg.method_kwargs.rectify_large_neg_sim = omegaconf_select(cfg, "method_kwargs.rectify_large_neg_sim", False)
         cfg.method_kwargs.rectify_small_neg_sim = omegaconf_select(cfg, "method_kwargs.rectify_small_neg_sim", False)
@@ -143,7 +143,7 @@ class Simplex(BaseMethod):
             z1, z2, k=self.parm_k, p=self.parm_p, lamb=self.parm_lamb,
             rectify_large_neg_sim=self.rectify_large_neg_sim, rectify_small_neg_sim=self.rectify_small_neg_sim,
             unimodal=self.unimodal
-            )
+        )
 
         self.log("train_loss", simplex_loss, on_epoch=True, sync_dist=True)
 
