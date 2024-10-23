@@ -37,10 +37,10 @@ def _evaluate_batch(func):
                         "alignment": eval_alignment(z1, z2),
                         "uniformity": (eval_uniformity(z1)+eval_uniformity(z2)) / 2,
                         "neg_similarity": eval_neg_similarity(z1, z2),
-                        "neg_similarity_all": eval_neg_similarity(z1, z2)
+                        "neg_similarity_all": (eval_neg_similarity(z1, z2)+eval_neg_similarity(z1, z1)+eval_neg_similarity(z2, z2))/3
                     }
                     for key, value in result_before.items():
-                        self.log(key+"_before", value, on_epoch=True, sync_dist=True)
+                        self.log("[before] "+key, value, on_epoch=True, sync_dist=True)
 
                     del z1, z2
 
@@ -61,12 +61,12 @@ def _evaluate_batch(func):
                     "alignment": eval_alignment(z1, z2),
                     "uniformity": (eval_uniformity(z1)+eval_uniformity(z2)) / 2,
                     "neg_similarity": eval_neg_similarity(z1, z2),
-                    "neg_similarity_all": eval_neg_similarity(z1, z2)
+                    "neg_similarity_all": (eval_neg_similarity(z1, z2)+eval_neg_similarity(z1, z1)+eval_neg_similarity(z2, z2))/3
                 }
                 for key, value in result_after.items():
-                    self.log(key+"_after", value, on_epoch=True, sync_dist=True)
+                    self.log("[after] "+key, value, on_epoch=True, sync_dist=True)
                     if not self.evaluate_batch.skip_before_optm:
-                        self.log(key+"_diff", value - result_before[key], on_epoch=True, sync_dist=True)
+                        self.log("[diff] "+key, value - result_before[key], on_epoch=True, sync_dist=True)
 
                 del z1, z2
 
@@ -94,9 +94,7 @@ def eval_neg_similarity(z1, z2):
 
 
 
-
-
-# https://github.com/ssnl/align_uniform/blob/master/align_uniform/__init__.py#L4-L9
+# https://github.com/ssnl/align_uniform
 def eval_alignment(x, y, alpha=2):
     return (x - y).norm(p=2, dim=1).pow(alpha).mean()
 
