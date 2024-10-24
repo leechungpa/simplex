@@ -42,6 +42,8 @@ from solo.utils.auto_resumer import AutoResumer
 from solo.utils.checkpointer import Checkpointer
 from solo.utils.misc import make_contiguous, omegaconf_select
 
+import shutil
+
 try:
     from solo.data.dali_dataloader import PretrainDALIDataModule, build_transform_pipeline_dali
 except ImportError:
@@ -178,13 +180,19 @@ def main(cfg: DictConfig):
 
     if cfg.checkpoint.enabled:
         current_time = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
+        result_dir = os.path.join(cfg.checkpoint.dir, cfg.method, current_time)
         ckpt = Checkpointer(
             cfg,
-            logdir=os.path.join(cfg.checkpoint.dir, cfg.method, current_time),
+            logdir=result_dir,
             frequency=cfg.checkpoint.frequency,
             keep_prev=cfg.checkpoint.keep_prev,
         )
         callbacks.append(ckpt)
+
+        os.makedirs(result_dir, exist_ok=True)
+        config_output_path = os.path.join(result_dir, "cfg_history.yaml")
+        OmegaConf.save(config=cfg, f=config_output_path)
+
 
     if omegaconf_select(cfg, "auto_umap.enabled", False):
         assert (
