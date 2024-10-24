@@ -8,7 +8,6 @@ def evaluate_batch(cls):
 
     return cls
 
-
 def _evaluate_batch_init(func):
     def wrapper(self, *args, **kargs):
         init_outputs = func(self, *args, **kargs)
@@ -17,7 +16,6 @@ def _evaluate_batch_init(func):
             print("[Evaluate batch] 'automatic_optimization' for LightningModule sets to False.")
         return init_outputs
     return wrapper
-
 
 def _evaluate_batch(func):
     def wrapper(self, batch, *args, **kargs):
@@ -50,6 +48,9 @@ def _evaluate_batch(func):
             optimizer.zero_grad()
             self.manual_backward(loss)
             optimizer.step()
+
+            sch = self.lr_schedulers()
+            sch.step()
 
             # ------- after optimization -------
             with torch.no_grad():
@@ -90,9 +91,6 @@ def eval_neg_similarity(z1, z2):
     mask = torch.eye(z1.size(0), dtype=torch.bool)  # (N, N)
 
     return similarity_matrix[~mask].mean() # similarity_matrix[~mask]: ( N*(N-1), )
-
-
-
 
 # https://github.com/ssnl/align_uniform
 def eval_alignment(x, y, alpha=2):
