@@ -14,8 +14,8 @@ hydra:
 # job name
 name: # --- job name ---
 name_kwargs:
-  add_method: Ture
-  add_batch_size: Ture
+  add_method: True
+  add_batch_size: True
   # For simplex loss
   add_k: False
   add_p: False # round(p*100)
