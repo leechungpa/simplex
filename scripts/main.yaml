@@ -18,10 +18,10 @@ name_kwargs:
   add_batch_size: True
   # For simplex loss
   add_k: False
-  add_p: False # round(p*100)
-  add_lamb: False # round(lamb*100)
+  add_p: False
+  add_lamb: False
   # For simlcr loss
-  add_temperature: False # round(temperature*100)
+  add_temperature: False
 
 ###############
 # loss
