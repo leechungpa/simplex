@@ -57,7 +57,8 @@ backbone:
 optimizer:
   name:  # Select the optimizer: "sgd", "lars", "adam", "adamw"
   batch_size: 64 # adjust based on your experiment (32, 64, 128, 256 512)
-  lr: 0.3
+  lr: 0.075
+  lr_method: "linear" # "square_root"
   weight_decay: 1e-4
   classifier_lr: 0.1
   kwargs:
