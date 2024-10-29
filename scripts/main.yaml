@@ -23,6 +23,8 @@ name_kwargs:
   # For simlcr loss
   add_temperature: False
 
+seed: 1234
+
 ###############
 # loss
 method: # Select the loss function: "simplex", "simclr", "barlow_twins"
@@ -37,7 +39,7 @@ method_kwargs:
   rectify_large_neg_sim: False
   rectify_small_neg_sim: False
   # For simclr
-  temperature: 0.07
+  temperature: 0.1
   # For barlow_twins
   scale_loss: 0.1
 
@@ -58,13 +60,9 @@ optimizer:
   name:  # Select the optimizer: "sgd", "lars", "adam", "adamw"
   batch_size: 64 # adjust based on your experiment (32, 64, 128, 256 512)
   lr: 0.075
-  lr_method: "linear" # "square_root"
-  weight_decay: 1e-4
+  lr_method: "square_root" # "square_root"
+  weight_decay: 1e-6
   classifier_lr: 0.1
-  kwargs:
-    clip_lr: True
-    eta: 0.02
-    exclude_bias_n_norm: True
 scheduler:
   name: "warmup_cosine"
 max_epochs: 1000 # adjust based on your experiment (200 400 1000)
