@@ -18,5 +18,5 @@
     prob: 0.0
   equalization:
     prob: 0.0
-  crop_size: 32 # For CIFAR10 / CIFAR100
+  crop_size: 224 # For ImageNet
   num_crops: 2
