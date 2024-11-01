@@ -47,7 +47,7 @@ def simplex_loss_func(
 
     similiarity = similiarity.abs().pow(p)
 
-    loss = similiarity[pos_mask].sum() + similiarity[neg_mask].sum()*lamb
+    loss = similiarity[pos_mask].sum() / batch_size + similiarity[neg_mask].sum()*lamb / (batch_size * (batch_size - 1))
 
     if unimodal:
         # Calcuate the additional loss terms for unimodal CL
@@ -67,6 +67,6 @@ def simplex_loss_func(
         similiarity_z1 = similiarity_z1.abs().pow(p)
         similiarity_z2 = similiarity_z2.abs().pow(p)
 
-        loss = loss + similiarity_z1[neg_mask].sum()*lamb/2 + similiarity_z2[neg_mask].sum()*lamb/2
+        loss = loss + (similiarity_z1[neg_mask].sum()*lamb/2 + similiarity_z2[neg_mask].sum()*lamb/2) / (batch_size * (batch_size - 1))
 
-    return loss / batch_size
+    return loss
