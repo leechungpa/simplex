@@ -17,9 +17,9 @@ def simplex_loss_func(
         k (int): See the definition. 
         p (int): See the definition.
         lamb (float): See the definition.
-        rectify_large_neg_sim (bool, optional): Retify the negative similarity to 0,
+        rectify_large_neg_sim (bool, optional): Rectify the negative similarity to 0,
                                                     if it is larger than -1/(k-1).
-        rectify_small_neg_sim (bool, optional): Retify the negative similarity to 0,
+        rectify_small_neg_sim (bool, optional): Rectify the negative similarity to 0,
                                                     if it is smaller than -1/(k-1).
         unimodal (bool): Calcuate the additional loss terms for unimodal CL.
 
