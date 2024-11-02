@@ -171,7 +171,7 @@ def parse_cfg(cfg: omegaconf.DictConfig):
         if len(cfg.devices) * cfg.num_nodes != 1:
             raise ValueError("Not Implemented.")
         scale_factor = (cfg.optimizer.batch_size)**(1/2)
-    if cfg.optimizer.lr_method == "without_scaling":
+    elif cfg.optimizer.lr_method == "without_scaling":
         # LR itself 
         scale_factor = 1
     else:
