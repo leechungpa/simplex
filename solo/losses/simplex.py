@@ -47,7 +47,7 @@ def simplex_loss_func(
 
     similiarity = similiarity.abs().pow(p)
 
-    loss = similiarity[pos_mask].sum() / batch_size + similiarity[neg_mask].sum()*lamb / (batch_size * (batch_size - 1))
+    loss = similiarity[pos_mask].sum() / batch_size + similiarity[neg_mask].sum() * lamb / (batch_size * (batch_size - 1))
 
     if unimodal:
         # Calcuate the additional loss terms for unimodal CL
@@ -58,9 +58,11 @@ def simplex_loss_func(
         similiarity_z2[neg_mask] = similiarity_z2[neg_mask] + 1/(k-1)
 
         if rectify_large_neg_sim:
+            # adjust to 0 if the similarity is greater than -1/(k-1)
             similiarity_z1[neg_mask] = -F.relu(-similiarity_z1[neg_mask])
             similiarity_z2[neg_mask] = -F.relu(-similiarity_z2[neg_mask])
         if rectify_small_neg_sim:
+            # adjust to 0 if the similarity is simply less than 0
             similiarity_z1[neg_mask] = F.relu(similiarity_z1[neg_mask])
             similiarity_z2[neg_mask] = F.relu(similiarity_z2[neg_mask])
 
