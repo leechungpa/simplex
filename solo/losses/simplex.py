@@ -17,9 +17,9 @@ def simplex_loss_func(
         k (int): See the definition. 
         p (int): See the definition.
         lamb (float): See the definition.
-        rectify_large_neg_sim (bool, optional): Retify the negative similarity to 0,
+        rectify_large_neg_sim (bool, optional): Rectify the negative similarity to 0,
                                                     if it is larger than -1/(k-1).
-        rectify_small_neg_sim (bool, optional): Retify the negative similarity to 0,
+        rectify_small_neg_sim (bool, optional): Rectify the negative similarity to 0,
                                                     if it is smaller than -1/(k-1).
         unimodal (bool): Calcuate the additional loss terms for unimodal CL.
 
@@ -47,7 +47,7 @@ def simplex_loss_func(
 
     similiarity = similiarity.abs().pow(p)
 
-    loss = similiarity[pos_mask].sum() / batch_size + similiarity[neg_mask].sum()*lamb / (batch_size * (batch_size - 1))
+    loss = similiarity[pos_mask].sum() / batch_size + similiarity[neg_mask].sum() * lamb / (batch_size * (batch_size - 1))
 
     if unimodal:
         # Calcuate the additional loss terms for unimodal CL
@@ -58,9 +58,11 @@ def simplex_loss_func(
         similiarity_z2[neg_mask] = similiarity_z2[neg_mask] + 1/(k-1)
 
         if rectify_large_neg_sim:
+            # adjust to 0 if the similarity is greater than -1/(k-1)
             similiarity_z1[neg_mask] = -F.relu(-similiarity_z1[neg_mask])
             similiarity_z2[neg_mask] = -F.relu(-similiarity_z2[neg_mask])
         if rectify_small_neg_sim:
+            # adjust to 0 if the similarity is simply less than 0
             similiarity_z1[neg_mask] = F.relu(similiarity_z1[neg_mask])
             similiarity_z2[neg_mask] = F.relu(similiarity_z2[neg_mask])
 
