@@ -4,6 +4,7 @@ import torch.nn.functional as F
 
 def simplex_loss_func(
     z1: torch.Tensor, z2: torch.Tensor,
+    target: torch.Tensor|None,
     k: int, p: int, lamb: float,
     rectify_large_neg_sim: bool = False, rectify_small_neg_sim: bool = False,
     unimodal: bool = True,
@@ -28,7 +29,12 @@ def simplex_loss_func(
     """
     batch_size = z1.size(0) # B
 
-    pos_mask = torch.eye(batch_size, device=z1.device, dtype=torch.bool) # ( B, B )
+    if target is None:
+        pos_mask = torch.eye(batch_size, device=z1.device, dtype=torch.bool) # ( B, B )
+    else:
+        target = target.unsqueeze(0)
+        pos_mask = target.t() == target
+
     neg_mask = ~ pos_mask # ( B, B )
 
     # Calcuate the loss for both unimodal and bimodal CL
