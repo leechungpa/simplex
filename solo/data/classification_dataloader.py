@@ -36,6 +36,8 @@ except ImportError:
 else:
     _h5_available = True
 
+from solo.data.cifar100coarse import CIFAR100Coarse
+
 
 def build_custom_pipeline():
     """Builds augmentation pipelines for custom data.
@@ -133,6 +135,7 @@ def prepare_transforms(dataset: str) -> Tuple[nn.Module, nn.Module]:
     pipelines = {
         "cifar10": cifar_pipeline,
         "cifar100": cifar_pipeline,
+        "cifar100coarse": cifar_pipeline,
         "stl10": stl_pipeline,
         "imagenet100": imagenet_pipeline,
         "imagenet": imagenet_pipeline,
@@ -185,10 +188,13 @@ def prepare_datasets(
         sandbox_folder = Path(os.path.dirname(os.path.dirname(os.path.realpath(__file__))))
         val_data_path = sandbox_folder / "datasets"
 
-    assert dataset in ["cifar10", "cifar100", "stl10", "imagenet", "imagenet100", "custom"]
+    assert dataset in ["cifar10", "cifar100", "cifar100coarse", "stl10", "imagenet", "imagenet100", "custom"]
 
-    if dataset in ["cifar10", "cifar100"]:
-        DatasetClass = vars(torchvision.datasets)[dataset.upper()]
+    if dataset in ["cifar10", "cifar100", "cifar100coarse"]:
+        if dataset == "cifar100coarse":
+            DatasetClass = CIFAR100Coarse
+        else:
+            DatasetClass = vars(torchvision.datasets)[dataset.upper()]
         train_dataset = DatasetClass(
             train_data_path,
             train=True,
