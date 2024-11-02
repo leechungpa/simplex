@@ -71,7 +71,7 @@ def main(cfg: DictConfig):
     ckpt_path = cfg.pretrained_feature_extractor
     assert ckpt_path.endswith(".ckpt") or ckpt_path.endswith(".pth") or ckpt_path.endswith(".pt")
 
-    state = torch.load(ckpt_path, map_location="cpu")["state_dict"]
+    state = torch.load(ckpt_path, map_location="cpu", weights_only=True)["state_dict"]
     for k in list(state.keys()):
         if "encoder" in k:
             state[k.replace("encoder", "backbone")] = state[k]

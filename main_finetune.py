@@ -84,7 +84,7 @@ def main(cfg: DictConfig):
     ckpt_path = cfg.pretrained_feature_extractor
     assert ckpt_path.endswith(".ckpt") or ckpt_path.endswith(".pth") or ckpt_path.endswith(".pt")
 
-    state = torch.load(ckpt_path, map_location="cpu")["state_dict"]
+    state = torch.load(ckpt_path, map_location="cpu", weights_only=True)["state_dict"]
 
     selected_state = {k: v for k, v in state.items() if k.startswith(("backbone", "projector"))}
 
