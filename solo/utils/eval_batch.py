@@ -58,7 +58,7 @@ def _evaluate_batch(func):
                 z1 = F.normalize(self.projector(self.backbone(X[0]))) # ( B, proj_output_dim )
                 z2 = F.normalize(self.projector(self.backbone(X[1]))) # ( B, proj_output_dim )
                 
-                pos_sim, neg_sim = eval_similarity(z1, z2)
+                pos_sim, pos_sim_std, neg_sim, neg_sim_std = eval_similarity(z1, z2, show_std=True)
 
                 # TBD: if self.evaluate_batch.type == "all":
                 result_after = {
@@ -71,6 +71,9 @@ def _evaluate_batch(func):
                     self.log("[after] "+key, value, on_epoch=True, sync_dist=True)
                     if not self.evaluate_batch.skip_before_optm:
                         self.log("[diff] "+key, value - result_before[key], on_epoch=True, sync_dist=True)
+                    
+                self.log("[after] pos_sim_std", pos_sim_std, on_epoch=True, sync_dist=True)
+                self.log("[after] neg_sim_std", neg_sim_std, on_epoch=True, sync_dist=True)
 
                 del z1, z2
 
@@ -80,7 +83,7 @@ def _evaluate_batch(func):
     return wrapper
 
 
-def eval_similarity(z1, z2):
+def eval_similarity(z1, z2, show_std=False):
     """Evaluate the average of (cosine) similarity of positive / negative pairs.
 
     Args:
@@ -92,9 +95,12 @@ def eval_similarity(z1, z2):
     similarity_matrix = F.cosine_similarity(z1.unsqueeze(1), z2.unsqueeze(0), dim = 2)  # (N, N)
 
     mask = torch.eye(z1.size(0), dtype=torch.bool)  # (N, N)
-    
-    # similarity of positive pairs, similarity of negative pairs
-    return similarity_matrix[mask].mean(), similarity_matrix[~mask].mean()
+
+    if show_std:
+        return similarity_matrix[mask].mean(), similarity_matrix[mask].std(), similarity_matrix[~mask].mean(), similarity_matrix[~mask].std()    
+    else:
+        # similarity of positive pairs, similarity of negative pairs
+        return similarity_matrix[mask].mean(), similarity_matrix[~mask].mean()
 
 # https://github.com/ssnl/align_uniform
 def eval_alignment(x, y, alpha=2):
