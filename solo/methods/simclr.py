@@ -26,6 +26,12 @@ from solo.losses.simclr import simclr_loss_func
 from solo.methods.base import BaseMethod
 from solo.utils.eval_batch import evaluate_batch
 
+class BatchNorm1dNoBias(nn.BatchNorm1d):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.bias.requires_grad = False
+
+
 @evaluate_batch
 class SimCLR(BaseMethod):
     def __init__(self, cfg: omegaconf.DictConfig):
@@ -48,8 +54,9 @@ class SimCLR(BaseMethod):
         # projector
         self.projector = nn.Sequential(
             nn.Linear(self.features_dim, proj_hidden_dim),
+            nn.BatchNorm1d(proj_hidden_dim),
             nn.ReLU(),
-            nn.Linear(proj_hidden_dim, proj_output_dim),
+            nn.Linear(proj_hidden_dim, proj_output_dim)
         )
 
     @staticmethod

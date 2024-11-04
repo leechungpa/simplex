@@ -199,7 +199,7 @@ class BaseMethod(pl.LightningModule):
             cifar = cfg.data.dataset.startswith('cifar')
             if cifar:
                 self.backbone.conv1 = nn.Conv2d(
-                    3, 64, kernel_size=3, stride=1, padding=2, bias=False
+                    3, 64, kernel_size=3, stride=1, padding=1, bias=False
                 )
                 self.backbone.maxpool = nn.Identity()
         else:
@@ -677,7 +677,7 @@ class BaseMomentumMethod(BaseMethod):
             cifar = cfg.data.dataset in ["cifar10", "cifar100"]
             if cifar:
                 self.momentum_backbone.conv1 = nn.Conv2d(
-                    3, 64, kernel_size=3, stride=1, padding=2, bias=False
+                    3, 64, kernel_size=3, stride=1, padding=1, bias=False
                 )
                 self.momentum_backbone.maxpool = nn.Identity()
 
