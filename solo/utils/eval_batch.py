@@ -21,6 +21,7 @@ def _evaluate_batch(func):
     def wrapper(self, batch, *args, **kargs):
         if self.evaluate_batch.enable:
             optimizer = self.optimizers()
+            sch = self.lr_schedulers()
 
             _, X, _ = batch
 
@@ -30,12 +31,14 @@ def _evaluate_batch(func):
                     z1 = F.normalize(self.projector(self.backbone(X[0]))) # ( B, proj_output_dim )
                     z2 = F.normalize(self.projector(self.backbone(X[1]))) # ( B, proj_output_dim )
 
+                    pos_sim, neg_sim = eval_similarity(z1, z2)
+
                     # TBD: if self.evaluate_batch.type == "all":
                     result_before = {
                         "alignment": eval_alignment(z1, z2),
                         "uniformity": (eval_uniformity(z1)+eval_uniformity(z2)) / 2,
-                        "neg_similarity": eval_neg_similarity(z1, z2),
-                        "neg_similarity_all": (eval_neg_similarity(z1, z2)+eval_neg_similarity(z1, z1)+eval_neg_similarity(z2, z2))/3
+                        "pos_similarity": pos_sim,
+                        "neg_similarity": neg_sim,
                     }
                     for key, value in result_before.items():
                         self.log("[before] "+key, value, on_epoch=True, sync_dist=True)
@@ -48,8 +51,6 @@ def _evaluate_batch(func):
             optimizer.zero_grad()
             self.manual_backward(loss)
             optimizer.step()
-
-            sch = self.lr_schedulers()
             sch.step()
 
             # ------- after optimization -------
@@ -57,17 +58,22 @@ def _evaluate_batch(func):
                 z1 = F.normalize(self.projector(self.backbone(X[0]))) # ( B, proj_output_dim )
                 z2 = F.normalize(self.projector(self.backbone(X[1]))) # ( B, proj_output_dim )
                 
+                pos_sim, pos_sim_std, neg_sim, neg_sim_std = eval_similarity(z1, z2, show_std=True)
+
                 # TBD: if self.evaluate_batch.type == "all":
                 result_after = {
                     "alignment": eval_alignment(z1, z2),
                     "uniformity": (eval_uniformity(z1)+eval_uniformity(z2)) / 2,
-                    "neg_similarity": eval_neg_similarity(z1, z2),
-                    "neg_similarity_all": (eval_neg_similarity(z1, z2)+eval_neg_similarity(z1, z1)+eval_neg_similarity(z2, z2))/3
+                    "pos_similarity": pos_sim,
+                    "neg_similarity": neg_sim,
                 }
                 for key, value in result_after.items():
                     self.log("[after] "+key, value, on_epoch=True, sync_dist=True)
                     if not self.evaluate_batch.skip_before_optm:
                         self.log("[diff] "+key, value - result_before[key], on_epoch=True, sync_dist=True)
+                    
+                self.log("[after] pos_sim_std", pos_sim_std, on_epoch=True, sync_dist=True)
+                self.log("[after] neg_sim_std", neg_sim_std, on_epoch=True, sync_dist=True)
 
                 del z1, z2
 
@@ -77,8 +83,8 @@ def _evaluate_batch(func):
     return wrapper
 
 
-def eval_neg_similarity(z1, z2):
-    """Evaluate the average of (cosine) similarity of negative pairs.
+def eval_similarity(z1, z2, show_std=False):
+    """Evaluate the average of (cosine) similarity of positive / negative pairs.
 
     Args:
         z1: (N, D)
@@ -90,7 +96,11 @@ def eval_neg_similarity(z1, z2):
 
     mask = torch.eye(z1.size(0), dtype=torch.bool)  # (N, N)
 
-    return similarity_matrix[~mask].mean() # similarity_matrix[~mask]: ( N*(N-1), )
+    if show_std:
+        return similarity_matrix[mask].mean(), similarity_matrix[mask].std(), similarity_matrix[~mask].mean(), similarity_matrix[~mask].std()    
+    else:
+        # similarity of positive pairs, similarity of negative pairs
+        return similarity_matrix[mask].mean(), similarity_matrix[~mask].mean()
 
 # https://github.com/ssnl/align_uniform
 def eval_alignment(x, y, alpha=2):

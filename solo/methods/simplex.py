@@ -54,6 +54,7 @@ class Simplex(BaseMethod):
         self.rectify_small_neg_sim: bool = cfg.method_kwargs.rectify_small_neg_sim
 
         self.unimodal: bool = cfg.method_kwargs.unimodal
+        self.supervised_simplex: bool = cfg.method_kwargs.supervised_simplex
 
         proj_hidden_dim: int = cfg.method_kwargs.proj_hidden_dim
         proj_output_dim: int = cfg.method_kwargs.proj_output_dim
@@ -90,6 +91,7 @@ class Simplex(BaseMethod):
         cfg.method_kwargs.rectify_small_neg_sim = omegaconf_select(cfg, "method_kwargs.rectify_small_neg_sim", False)
 
         cfg.method_kwargs.unimodal = omegaconf_select(cfg, "method_kwargs.unimodal", True)
+        cfg.method_kwargs.supervised_simplex = omegaconf_select(cfg, "method_kwargs.supervised_simplex", False)
 
         return cfg
 
@@ -130,6 +132,11 @@ class Simplex(BaseMethod):
         Returns:
             torch.Tensor: total loss composed of Barlow loss and classification loss.
         """ 
+        if self.supervised_simplex:
+            target = batch[-1]
+        else:
+            target = None
+
         out = super().training_step(batch, batch_idx)
 
         class_loss = out["loss"]
@@ -137,7 +144,8 @@ class Simplex(BaseMethod):
 
         # ------- simplex loss -------
         simplex_loss = simplex_loss_func(
-            z1, z2, k=self.parm_k, p=self.parm_p, lamb=self.parm_lamb,
+            z1, z2, target=target,
+            k=self.parm_k, p=self.parm_p, lamb=self.parm_lamb,
             rectify_large_neg_sim=self.rectify_large_neg_sim, rectify_small_neg_sim=self.rectify_small_neg_sim,
             unimodal=self.unimodal
         )

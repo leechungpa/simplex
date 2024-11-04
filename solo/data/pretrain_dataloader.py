@@ -38,6 +38,8 @@ except ImportError:
 else:
     _h5_available = True
 
+from solo.data.cifar100coarse import CIFAR100Coarse
+
 
 def dataset_with_index(DatasetClass: Type[Dataset]) -> Type[Dataset]:
     """Factory for datasets that also returns the data index.
@@ -318,8 +320,11 @@ def prepare_datasets(
         sandbox_folder = Path(os.path.dirname(os.path.dirname(os.path.realpath(__file__))))
         train_data_path = sandbox_folder / "datasets"
 
-    if dataset in ["cifar10", "cifar100"]:
-        DatasetClass = vars(torchvision.datasets)[dataset.upper()]
+    if dataset in ["cifar10", "cifar100", "cifar100coarse"]:
+        if dataset == "cifar100coarse":
+            DatasetClass = CIFAR100Coarse
+        else:
+            DatasetClass = vars(torchvision.datasets)[dataset.upper()]
         train_dataset = dataset_with_index(DatasetClass)(
             train_data_path,
             train=True,

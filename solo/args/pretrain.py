@@ -23,14 +23,16 @@ else:
 _N_CLASSES_PER_DATASET = {
     "cifar10": 10,
     "cifar100": 100,
+    "cifar100coarse": 20,
     "stl10": 10,
     "imagenet": 1000,
     "imagenet100": 100,
 }
 
 _N_INSTANCES_PER_DATASET = {
-    "cifar10": 45000,
-    "cifar100": 45000,
+    "cifar10": 50000,
+    "cifar100": 50000,
+    "cifar100coarse": 50000,
     # "stl10": _, # To-DO update
     # "imagenet": _,
     "imagenet100": 126689,
@@ -39,6 +41,7 @@ _N_INSTANCES_PER_DATASET = {
 _SUPPORTED_DATASETS = [
     "cifar10",
     "cifar100",
+    "cifar100coarse",
     "stl10",
     "imagenet",
     "imagenet100",
@@ -168,6 +171,9 @@ def parse_cfg(cfg: omegaconf.DictConfig):
         if len(cfg.devices) * cfg.num_nodes != 1:
             raise ValueError("Not Implemented.")
         scale_factor = (cfg.optimizer.batch_size)**(1/2)
+    elif cfg.optimizer.lr_method == "without_scaling":
+        # LR itself 
+        scale_factor = 1
     else:
         raise ValueError("Not Implemented.")
 

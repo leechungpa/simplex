@@ -18,37 +18,48 @@
 # DEALINGS IN THE SOFTWARE.
 
 import inspect
-import logging
 import os
+import datetime
 
 import hydra
 import torch
-import torch.nn as nn
-from lightning.pytorch import Trainer
+from lightning.pytorch import Trainer, seed_everything
 from lightning.pytorch.callbacks import LearningRateMonitor
-from lightning.pytorch.loggers import WandbLogger
+from lightning.pytorch.loggers.wandb import WandbLogger
 from lightning.pytorch.strategies.ddp import DDPStrategy
 from omegaconf import DictConfig, OmegaConf
-from timm.data.mixup import Mixup
-from timm.loss import LabelSmoothingCrossEntropy, SoftTargetCrossEntropy
-
-from solo.args.linear import parse_cfg
-from solo.data.classification_dataloader import prepare_data
-from solo.methods.base import BaseMethod
-from solo.methods.linear import LinearModel
+from solo.args.pretrain import parse_cfg
+from solo.data.classification_dataloader import prepare_data as prepare_data_classification
+from solo.data.pretrain_dataloader import (
+    FullTransformPipeline,
+    NCropAugmentation,
+    build_transform_pipeline,
+    prepare_dataloader,
+    prepare_datasets,
+)
+from solo.methods import METHODS
 from solo.utils.auto_resumer import AutoResumer
 from solo.utils.checkpointer import Checkpointer
-from solo.utils.misc import make_contiguous
+from solo.utils.misc import make_contiguous, omegaconf_select
+
+import shutil
 
 try:
-    from solo.data.dali_dataloader import ClassificationDALIDataModule
+    from solo.data.dali_dataloader import PretrainDALIDataModule, build_transform_pipeline_dali
 except ImportError:
     _dali_avaliable = False
 else:
     _dali_avaliable = True
 
+try:
+    from solo.utils.auto_umap import AutoUMAP
+except ImportError:
+    _umap_available = False
+else:
+    _umap_available = True
 
-@hydra.main(version_base="1.2", config_path="scripts")
+
+@hydra.main(version_base="1.2", config_path="./scripts")
 def main(cfg: DictConfig):
     # hydra doesn't allow us to add new keys for "safety"
     # set_struct(..., False) disables this behavior and allows us to add more parameters
@@ -56,103 +67,113 @@ def main(cfg: DictConfig):
     OmegaConf.set_struct(cfg, False)
     cfg = parse_cfg(cfg)
 
-    backbone_model = BaseMethod._BACKBONES[cfg.backbone.name]
+    seed_everything(cfg.seed)
 
-    # initialize backbone
-    backbone = backbone_model(method=cfg.pretrain_method, **cfg.backbone.kwargs)
-    if cfg.backbone.name.startswith("resnet"):
-        # remove fc layer
-        backbone.fc = nn.Identity()
-        cifar = cfg.data.dataset.startswith("cifar")
-        if cifar:
-            backbone.conv1 = nn.Conv2d(3, 64, kernel_size=3, stride=1, padding=2, bias=False)
-            backbone.maxpool = nn.Identity()
+    assert cfg.method in METHODS, f"Choose from {METHODS.keys()}"
 
-    ckpt_path = cfg.pretrained_feature_extractor
-    assert ckpt_path.endswith(".ckpt") or ckpt_path.endswith(".pth") or ckpt_path.endswith(".pt")
+    if cfg.data.num_large_crops != 2:
+        assert cfg.method in ["wmse", "mae"]
 
-    state = torch.load(ckpt_path, map_location="cpu", weights_only=True)["state_dict"]
-    for k in list(state.keys()):
-        if "encoder" in k:
-            state[k.replace("encoder", "backbone")] = state[k]
-            logging.warn(
-                "You are using an older checkpoint. Use a new one as some issues might arrise."
-            )
-        if "backbone" in k:
-            state[k.replace("backbone.", "")] = state[k]
-        del state[k]
-    backbone.load_state_dict(state, strict=False)
-    logging.info(f"Loaded {ckpt_path}")
-
-    # check if mixup or cutmix is enabled
-    mixup_func = None
-    mixup_active = cfg.mixup > 0 or cfg.cutmix > 0
-    if mixup_active:
-        logging.info("Mixup activated")
-        mixup_func = Mixup(
-            mixup_alpha=cfg.mixup,
-            cutmix_alpha=cfg.cutmix,
-            cutmix_minmax=None,
-            prob=1.0,
-            switch_prob=0.5,
-            mode="batch",
-            label_smoothing=cfg.label_smoothing,
-            num_classes=cfg.data.num_classes,
-        )
-        # smoothing is handled with mixup label transform
-        loss_func = SoftTargetCrossEntropy()
-    elif cfg.label_smoothing > 0:
-        loss_func = LabelSmoothingCrossEntropy(smoothing=cfg.label_smoothing)
-    else:
-        loss_func = torch.nn.CrossEntropyLoss()
-
-    model = LinearModel(backbone, loss_func=loss_func, mixup_func=mixup_func, cfg=cfg)
+    model = METHODS[cfg.method](cfg)
     make_contiguous(model)
     # can provide up to ~20% speed up
     if not cfg.performance.disable_channel_last:
         model = model.to(memory_format=torch.channels_last)
 
-    if cfg.data.format == "dali":
-        val_data_format = "image_folder"
+    # Load the model
+    ckpt_path = cfg.pretrained_feature_extractor
+    assert ckpt_path.endswith(".ckpt") or ckpt_path.endswith(".pth") or ckpt_path.endswith(".pt")
+
+    state = torch.load(ckpt_path, map_location="cpu", weights_only=True)["state_dict"]
+
+    selected_state = {k: v for k, v in state.items() if k.startswith(("backbone", "projector"))}
+
+    model.load_state_dict(selected_state, strict=False)
+
+
+    # validation dataloader for when it is available
+    if cfg.data.dataset == "custom" and (cfg.data.no_labels or cfg.data.val_path is None):
+        val_loader = None
+    elif cfg.data.dataset in ["imagenet100", "imagenet"] and cfg.data.val_path is None:
+        val_loader = None
     else:
-        val_data_format = cfg.data.format
+        if cfg.data.format == "dali":
+            val_data_format = "image_folder"
+        else:
+            val_data_format = cfg.data.format
 
-    train_loader, val_loader = prepare_data(
-        cfg.data.dataset,
-        train_data_path=cfg.data.train_path,
-        val_data_path=cfg.data.val_path,
-        data_format=val_data_format,
-        batch_size=cfg.optimizer.batch_size,
-        num_workers=cfg.data.num_workers,
-        auto_augment=cfg.auto_augment,
-    )
+        _, val_loader = prepare_data_classification(
+            cfg.data.dataset,
+            train_data_path=cfg.data.train_path,
+            val_data_path=cfg.data.val_path,
+            data_format=val_data_format,
+            batch_size=cfg.optimizer.batch_size,
+            num_workers=cfg.data.num_workers,
+        )
 
+    # pretrain dataloader
     if cfg.data.format == "dali":
         assert (
             _dali_avaliable
         ), "Dali is not currently avaiable, please install it first with pip3 install .[dali]."
+        pipelines = []
+        for aug_cfg in cfg.augmentations:
+            pipelines.append(
+                NCropAugmentation(
+                    build_transform_pipeline_dali(
+                        cfg.data.dataset, aug_cfg, dali_device=cfg.dali.device
+                    ),
+                    aug_cfg.num_crops,
+                )
+            )
+        transform = FullTransformPipeline(pipelines)
 
-        assert not cfg.auto_augment, "Auto augmentation is not supported with Dali."
-
-        dali_datamodule = ClassificationDALIDataModule(
+        dali_datamodule = PretrainDALIDataModule(
             dataset=cfg.data.dataset,
             train_data_path=cfg.data.train_path,
-            val_data_path=cfg.data.val_path,
+            transforms=transform,
+            num_large_crops=cfg.data.num_large_crops,
+            num_small_crops=cfg.data.num_small_crops,
             num_workers=cfg.data.num_workers,
             batch_size=cfg.optimizer.batch_size,
+            no_labels=cfg.data.no_labels,
             data_fraction=cfg.data.fraction,
             dali_device=cfg.dali.device,
+            encode_indexes_into_labels=cfg.dali.encode_indexes_into_labels,
         )
-
-        # use normal torchvision dataloader for validation to save memory
         dali_datamodule.val_dataloader = lambda: val_loader
+    else:
+        pipelines = []
+        for aug_cfg in cfg.augmentations:
+            pipelines.append(
+                NCropAugmentation(
+                    build_transform_pipeline(cfg.data.dataset, aug_cfg), aug_cfg.num_crops
+                )
+            )
+        transform = FullTransformPipeline(pipelines)
+
+        if cfg.debug_augmentations:
+            print("Transforms:")
+            print(transform)
+
+        train_dataset = prepare_datasets(
+            cfg.data.dataset,
+            transform,
+            train_data_path=cfg.data.train_path,
+            data_format=cfg.data.format,
+            no_labels=cfg.data.no_labels,
+            data_fraction=cfg.data.fraction,
+        )
+        train_loader = prepare_dataloader(
+            train_dataset, batch_size=cfg.optimizer.batch_size, num_workers=cfg.data.num_workers
+        )
 
     # 1.7 will deprecate resume_from_checkpoint, but for the moment
     # the argument is the same, but we need to pass it as ckpt_path to trainer.fit
     ckpt_path, wandb_run_id = None, None
     if cfg.auto_resume.enabled and cfg.resume_from_checkpoint is None:
         auto_resumer = AutoResumer(
-            checkpoint_dir=os.path.join(cfg.checkpoint.dir, "linear"),
+            checkpoint_dir=os.path.join(cfg.checkpoint.dir, cfg.method),
             max_hours=cfg.auto_resume.max_hours,
         )
         resume_from_checkpoint, wandb_run_id = auto_resumer.find_checkpoint(cfg)
@@ -169,13 +190,31 @@ def main(cfg: DictConfig):
     callbacks = []
 
     if cfg.checkpoint.enabled:
+        current_time = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
+        result_dir = os.path.join(cfg.checkpoint.dir, cfg.method, current_time)
         ckpt = Checkpointer(
             cfg,
-            logdir=os.path.join(cfg.checkpoint.dir, "linear"),
+            logdir=result_dir,
             frequency=cfg.checkpoint.frequency,
             keep_prev=cfg.checkpoint.keep_prev,
         )
         callbacks.append(ckpt)
+
+        os.makedirs(result_dir, exist_ok=True)
+        config_output_path = os.path.join(result_dir, "cfg_history.yaml")
+        OmegaConf.save(config=cfg, f=config_output_path)
+
+
+    if omegaconf_select(cfg, "auto_umap.enabled", False):
+        assert (
+            _umap_available
+        ), "UMAP is not currently avaiable, please install it first with [umap]."
+        auto_umap = AutoUMAP(
+            cfg.name,
+            logdir=os.path.join(cfg.auto_umap.dir, cfg.method),
+            frequency=cfg.auto_umap.frequency,
+        )
+        callbacks.append(auto_umap)
 
     # wandb logging
     if cfg.wandb.enabled:
@@ -202,6 +241,7 @@ def main(cfg: DictConfig):
         {
             "logger": wandb_logger if cfg.wandb.enabled else None,
             "callbacks": callbacks,
+            # "fp16": False,
             "enable_checkpointing": False,
             "strategy": DDPStrategy(find_unused_parameters=False)
             if cfg.strategy == "ddp"
