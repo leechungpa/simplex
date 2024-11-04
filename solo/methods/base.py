@@ -202,7 +202,7 @@ class BaseMethod(pl.LightningModule):
                     # 3, 64, kernel_size=3, stride=1, padding=2, bias=False
                     3, 64, kernel_size=3, stride=1, padding=1, bias=False
                 )
-                self.backbone.bn1 = nn.BatchNorm2d(64)   # changed
+                # self.backbone.bn1 = nn.BatchNorm2d(64)   # changed
                 self.backbone.maxpool = nn.Identity()
         else:
             self.features_dim: int = self.backbone.num_features
