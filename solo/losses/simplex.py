@@ -41,6 +41,7 @@ def simplex_loss_func(
     similiarity[neg_mask] = similiarity[neg_mask] + 1/(k-1)
 
     if rectify_large_neg_sim:
+        # adjust to 0 if the similarity is greater than -1/(k-1)
         similiarity[neg_mask] = -F.relu(-similiarity[neg_mask])
     if rectify_small_neg_sim:
         similiarity[neg_mask] = F.relu(similiarity[neg_mask])
