@@ -28,7 +28,7 @@ import torch.nn.functional as F
 from torch.optim.lr_scheduler import ExponentialLR, MultiStepLR, ReduceLROnPlateau
 
 from solo.utils.lars import LARS
-from solo.utils.lr_scheduler import LinearWarmupCosineAnnealingLR
+from solo.utils.lr_scheduler import LinearWarmupCosineAnnealingLR, LinearLR
 from solo.utils.metrics import accuracy_at_k, weighted_mean
 from solo.utils.misc import (
     omegaconf_select,
@@ -49,6 +49,7 @@ class LinearModel(pl.LightningModule):
         "warmup_cosine",
         "step",
         "exponential",
+        "linear",
         "none",
     ]
 
@@ -277,6 +278,8 @@ class LinearModel(pl.LightningModule):
             scheduler = MultiStepLR(optimizer, self.lr_decay_steps, gamma=0.1)
         elif self.scheduler == "exponential":
             scheduler = ExponentialLR(optimizer, self.weight_decay)
+        elif self.scheduler == "linear":
+            scheduler = LinearLR(optimizer, self.max_epochs)
         else:
             raise ValueError(
                 f"{self.scheduler} not in (warmup_cosine, cosine, reduce, step, exponential)"
@@ -355,6 +358,9 @@ class LinearModel(pl.LightningModule):
             log.update({"train_acc1": out["acc1"], "train_acc5": out["acc5"]})
 
         self.log_dict(log, on_epoch=True, sync_dist=True)
+
+        # current_lr = self.lr_schedulers().get_lr()
+        # print("Current Learning Rate:", current_lr[0])
         return out["loss"]
 
     def validation_step(self, batch: torch.Tensor, batch_idx: int) -> Dict[str, Any]:

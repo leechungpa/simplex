@@ -174,6 +174,8 @@ class Checkpointer(Callback):
         if epoch % self.frequency == 0:
             self.save(trainer)
 
+        # current_lr = trainer.optimizers[0].param_groups[0]['lr']
+        # print("Current Learning Rate:", current_lr)
 
     def on_train_end(self, trainer: pl.Trainer, _):
         """Tries to save current checkpoint at the end of each train epoch.
