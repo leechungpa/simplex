@@ -1,20 +1,23 @@
 import os
 import random
+import copy
 
 import torch
 import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import DataLoader, Dataset, Subset
-import numpy as np
-from tqdm import tqdm
 from torch.utils.data.sampler import BatchSampler
-
 import torch.nn.functional as F
 
-import copy
+
+import numpy as np
+from tqdm import tqdm
+
+import matplotlib.pyplot as plt
 
 from solo.losses.simclr import simclr_loss_func
 from solo.losses.simplex import simplex_loss_func
+
 
 def set_seed(seed):
     random.seed(seed)
@@ -26,7 +29,6 @@ def set_seed(seed):
     torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.benchmark = True
     print("Seed everything: {}".format(seed))
-
 
 
 class SyntheticDataset(Dataset):
@@ -59,8 +61,6 @@ class SyntheticDataset(Dataset):
 
     def __getitem__(self, idx):
         return self.data[idx], self.labels[idx]
-
-
 
 class LabelMappedDataset(Dataset):
     def __init__(self, original_dataset, label_mapping):
@@ -97,9 +97,6 @@ class SubsetByLabels(Dataset):
     def __getitem__(self, idx):
         original_idx = self.filtered_indices[idx]
         return self.original_dataset[original_idx]
-
-
-
 
 class BalancedBatchSampler(BatchSampler):
     """
@@ -150,7 +147,6 @@ class BalancedBatchSampler(BatchSampler):
         return len(self.dataset) // self.batch_size
 
 
-
 class SimpleNN(nn.Module):
     def __init__(self, input_dim, out_dim):
         super(SimpleNN, self).__init__()
@@ -168,6 +164,25 @@ class SimpleNN(nn.Module):
 def train_model(model, optimizer, train_loader, val_loader, test_loader, lose_type, num_epochs=10):
     acc_result = []
 
+    if lose_type == "simplex":
+        neg_sim = []
+        model.eval()
+        for inputs, labels in train_loader:
+            with torch.no_grad():
+                outputs = model(inputs)
+                normalized_outputs = F.normalize(outputs, dim=1)
+                similarity_matrix = torch.mm(normalized_outputs, normalized_outputs.T)
+
+                target = labels.unsqueeze(0)
+                mask = target.t() == target
+                
+                neg_sim_temp = similarity_matrix[~mask].view(similarity_matrix.size(0), -1)
+                neg_sim.append(neg_sim_temp.mean().item())
+
+        neg_sim = np.mean(neg_sim)
+        k = 1 - 1/neg_sim
+        print(k)
+
     for epoch in range(num_epochs):
         model.train()
         total_loss = 0.0
@@ -175,26 +190,11 @@ def train_model(model, optimizer, train_loader, val_loader, test_loader, lose_ty
         for inputs, labels in train_loader:
             optimizer.zero_grad()
             outputs = model(inputs)
+
             if lose_type == "simclr":
                 loss = simclr_loss_func(outputs, labels, 0.1)
             elif lose_type == "simplex":
-
-                with torch.no_grad():
-                    normalized_outputs = F.normalize(outputs, dim=1) # ( B, proj_output_dim )
-                    similarity_matrix = torch.mm(normalized_outputs, normalized_outputs.T)   # (N, N)
-                    
-                    target = labels.unsqueeze(0)
-                    mask = target.t() == target
-                    
-                    negative_similarity = similarity_matrix[~mask].view(similarity_matrix.size(0), -1)   # (N, N-1)
-                    avg_neg_similarity = negative_similarity.mean().item()
-
-                    print(avg_neg_similarity)
-                    print(similarity_matrix[mask].mean())
-
-                    k = 1 - 1/avg_neg_similarity
-
-                loss = simplex_loss_func(outputs, outputs, labels, k=k, p=2, lamb=20)
+                loss = simplex_loss_func(outputs, outputs, labels, k=k, p=2, lamb=5)
             loss.backward()
             optimizer.step()
             
@@ -213,12 +213,16 @@ def train_model(model, optimizer, train_loader, val_loader, test_loader, lose_ty
         else:
             acc = test_nn(model, val_loader, test_loader, top_k=200)
             string_epoch += f", acc@1: {acc:.2f}"
+            acc_result.append(acc)
+
         print(string_epoch)
-        acc_result.append(acc)
+    
+    return acc_result
 
 
-
-def test_nn(net, memory_data_loader, test_data_loader, top_k=200):
+def test_nn(net, memory_data_loader, test_data_loader,
+             top_k=200):
+    
     net.eval()
     total_top1, total_num, feature_bank  = 0.0, 0, []
 
@@ -263,16 +267,21 @@ def test_nn(net, memory_data_loader, test_data_loader, top_k=200):
 
 
 if __name__ == "__main__":
-    ##########
-    # Pre training
+    # model
     input_dim = 32
     out_dim = 32
 
+    # data
     std_to_generate = 0.8
-
     n_class = 10
-    
+
+    ##########
+    # Pre training
+    coarse_label = [0,0,1,1,2,2,3,3,4,4]
+
     batch_size = 100
+    pretrain_epoch = 50
+
 
     set_seed(1234)
     affine_matrix = np.random.rand(input_dim, input_dim)  # Random matrix for affine transformation
@@ -287,10 +296,9 @@ if __name__ == "__main__":
     train_dataset.data = (train_dataset.data - mean) / std
     test_dataset.data = (test_dataset.data - mean) / std
 
-
-    coarse_train_dataset = LabelMappedDataset(train_dataset, [0,0,1,1,2,2,3,3,4,4])
-    coarse_test_dataset = LabelMappedDataset(test_dataset, [0,0,1,1,2,2,3,3,4,4])
-    coarse_n_class = 5
+    coarse_train_dataset = LabelMappedDataset(train_dataset, coarse_label)
+    coarse_test_dataset = LabelMappedDataset(test_dataset, coarse_label)
+    coarse_n_class = len(set(coarse_label))
 
     coarse_balanced_sampler = BalancedBatchSampler(coarse_train_dataset, coarse_n_class, batch_size//coarse_n_class)
 
@@ -302,41 +310,56 @@ if __name__ == "__main__":
     model = SimpleNN(input_dim=input_dim, out_dim=out_dim)
     optimizer = optim.SGD(model.parameters(), lr=0.1)
 
-    train_model(model, optimizer, coarse_train_loader, coarse_val_loader, coarse_test_loader, "simclr", num_epochs=20)
+    train_model(model, optimizer, coarse_train_loader, coarse_val_loader, coarse_test_loader, "simclr", num_epochs=pretrain_epoch)
 
     ##########
     # Finetuning
-    labels = [0,1,2,3]
-    fine_n_class = 4
-
+    fine_labels = [0,1,2,3]
     batch_size = 32
 
-    epoch_finetue = 10
+    epoch_finetue = 30
 
-    indices = [idx for idx, label in enumerate(train_dataset.labels) if label in labels]
+
+    fine_n_class = len(set(fine_labels))
+    indices = [idx for idx, label in enumerate(train_dataset.labels) if label in fine_labels]
     fine_train_dataset = Subset(train_dataset, indices)
     fine_balanced_sampler = BalancedBatchSampler(fine_train_dataset, fine_n_class, batch_size//fine_n_class)
 
-    indices = [idx for idx, label in enumerate(test_dataset.labels) if label in labels]
+    indices = [idx for idx, label in enumerate(test_dataset.labels) if label in fine_labels]
     fine_test_dataset = Subset(test_dataset, indices)
 
     fine_train_loader = DataLoader(fine_train_dataset, batch_sampler=fine_balanced_sampler)
     fine_val_loader = DataLoader(fine_train_dataset, batch_size=batch_size, shuffle=False)
     fine_test_loader = DataLoader(fine_test_dataset, batch_size=batch_size, shuffle=False)
 
-    acc = test_nn(model, fine_val_loader, fine_test_loader, top_k=200)
-    print(f"Before fine-tuning: {acc:.2f}")
-
+    acc_finetune = test_nn(model, fine_val_loader, fine_test_loader, top_k=200)
+    acc_coarse = test_nn(model, coarse_val_loader, coarse_test_loader, top_k=200)
+    print(f"Before fine-tuning: {acc_finetune:.2f}, {acc_coarse:.2f}")
     
-    pretrained_model = copy.deepcopy(model)
-    finetune_optimizer = optim.SGD(pretrained_model.parameters(), lr=0.1)
-
     print("----simclr----")
-    train_model(pretrained_model, finetune_optimizer, fine_train_loader, [fine_val_loader, coarse_val_loader], [fine_test_loader, coarse_test_loader], "simclr", num_epochs=epoch_finetue)
-
-
     pretrained_model = copy.deepcopy(model)
-    finetune_optimizer = optim.SGD(pretrained_model.parameters(), lr=0.1)
+    finetune_optimizer = optim.SGD(pretrained_model.parameters(), lr=0.05)
+    simclr_result = train_model(pretrained_model, finetune_optimizer, fine_train_loader, [fine_val_loader, coarse_val_loader], [fine_test_loader, coarse_test_loader], "simclr", num_epochs=epoch_finetue)
 
     print("----simplex----")
-    train_model(pretrained_model, finetune_optimizer, fine_train_loader, [fine_val_loader, coarse_val_loader], [fine_test_loader, coarse_test_loader], "simplex", num_epochs=epoch_finetue)
+    pretrained_model = copy.deepcopy(model)
+    finetune_optimizer = optim.SGD(pretrained_model.parameters(), lr=0.05)
+    simplex_result = train_model(pretrained_model, finetune_optimizer, fine_train_loader, [fine_val_loader, coarse_val_loader], [fine_test_loader, coarse_test_loader], "simplex", num_epochs=epoch_finetue)
+
+    ##########
+    # Plot the result
+    plt.figure(figsize=(10, 6))
+    simclr_x, simclr_y = zip(*simclr_result)
+    simplex_x, simplex_y = zip(*simplex_result)
+
+    plt.scatter(acc_finetune, acc_coarse, label='Pre-trained base model', color='black', s=100)
+    plt.scatter(simclr_x, simclr_y, label='Fine-tuning using SimCLR', color='blue')
+    plt.scatter(simplex_x, simplex_y, label='Fine-tuning using Simplex', color='red')
+
+    plt.xlabel('Acc@1 (fine-tune task: subset of fine-grained classes)')
+    plt.ylabel('Acc@1 (pre-train task: coarse-grained classes)')
+    plt.legend(loc='lower left')
+    plt.grid()
+
+    plt.savefig("./synthetic_result.png")
+    plt.close()
