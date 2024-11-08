@@ -67,6 +67,9 @@ class Simplex(BaseMethod):
             nn.Linear(proj_hidden_dim, proj_output_dim),
         )
 
+        # finetune 모드 추가 (default는 False)
+        self.finetune = cfg.method_kwargs.get("finetune", False)
+
     @staticmethod
     def add_and_assert_specific_cfg(cfg: omegaconf.DictConfig) -> omegaconf.DictConfig:
         """Adds method specific default values/checks for config.
@@ -143,6 +146,17 @@ class Simplex(BaseMethod):
         class_loss = out["loss"]
         z1, z2 = out["z"]
 
+        if self.finetune:
+            with torch.no_grad():
+                similarity_matrix = torch.mm(z1, z2.T)   # (N, N)
+                mask = torch.eye(similarity_matrix.size(0), dtype=torch.bool, device=similarity_matrix.device)
+                negative_similarity = similarity_matrix[~mask].view(similarity_matrix.size(0), -1)   # (N, N-1)
+                avg_neg_similarity = negative_similarity.mean().item()
+
+                self.parm_k = 1 / (-avg_neg_similarity + 1)
+                # print(self.parm_k)
+        
+        
         # ------- simplex loss -------
         simplex_loss = simplex_loss_func(
             z1, z2, target=target,
