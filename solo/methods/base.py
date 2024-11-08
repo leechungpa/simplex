@@ -317,9 +317,12 @@ class BaseMethod(pl.LightningModule):
         cfg.add_simplex_loss = omegaconf_select(cfg, "add_simplex_loss", {})
         cfg.add_simplex_loss.enabled = omegaconf_select(cfg, "add_simplex_loss.enabled", False)
         cfg.add_simplex_loss.weight = omegaconf_select(cfg, "add_simplex_loss.weight", 1.0)
-        cfg.add_simplex_loss.k = omegaconf_select(cfg, "add_simplex_loss.k", 100)
+        cfg.add_simplex_loss.k = omegaconf_select(cfg, "add_simplex_loss.k", None)
         cfg.add_simplex_loss.p = omegaconf_select(cfg, "add_simplex_loss.p", 2)
+        cfg.add_simplex_loss.lamb = omegaconf_select(cfg, "add_simplex_loss.lamb", 1)
+        cfg.add_simplex_loss.rectify_large_neg_sim = omegaconf_select(cfg, "add_simplex_loss.rectify_large_neg_sim", False)
         cfg.add_simplex_loss.rectify_small_neg_sim = omegaconf_select(cfg, "add_simplex_loss.rectify_small_neg_sim", False)
+        cfg.add_simplex_loss.unimodal = omegaconf_select(cfg, "add_simplex_loss.unimodal", False)
 
         # default empty parameters for our research
         cfg.evaluate_batch = omegaconf_select(cfg, "evaluate_batch", {})
@@ -551,9 +554,11 @@ class BaseMethod(pl.LightningModule):
             z1, z2 = outs["z"]
             simplex_loss = simplex_loss_func(
                 z1, z2,
-                k=self.add_simplex_loss.k, p=self.add_simplex_loss.p, lamb=10,
+                target=None, 
+                k=self.add_simplex_loss.k, p=self.add_simplex_loss.p, lamb=self.add_simplex_loss.lamb,
+                rectify_large_neg_sim=self.add_simplex_loss.rectify_large_neg_sim,
                 rectify_small_neg_sim=self.add_simplex_loss.rectify_small_neg_sim,
-                target=None
+                unimodal=self.add_simplex_loss.unimodal
             )
             
             metrics["simplex_loss"] = simplex_loss
