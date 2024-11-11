@@ -65,7 +65,7 @@ def main(cfg: DictConfig):
         backbone.fc = nn.Identity()
         cifar = cfg.data.dataset.startswith("cifar")
         if cifar:
-            backbone.conv1 = nn.Conv2d(3, 64, kernel_size=3, stride=1, padding=2, bias=False)
+            backbone.conv1 = nn.Conv2d(3, 64, kernel_size=3, stride=1, padding=1, bias=False)
             backbone.maxpool = nn.Identity()
 
     ckpt_path = cfg.pretrained_feature_extractor
