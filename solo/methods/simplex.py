@@ -67,6 +67,9 @@ class Simplex(BaseMethod):
             nn.Linear(proj_hidden_dim, proj_output_dim),
         )
 
+        # finetune 모드 추가 (default는 False)
+        self.finetune = cfg.method_kwargs.get("finetune", False)
+
     @staticmethod
     def add_and_assert_specific_cfg(cfg: omegaconf.DictConfig) -> omegaconf.DictConfig:
         """Adds method specific default values/checks for config.
