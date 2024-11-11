@@ -146,17 +146,6 @@ class Simplex(BaseMethod):
         class_loss = out["loss"]
         z1, z2 = out["z"]
 
-        if self.finetune:
-            with torch.no_grad():
-                z1_normalized = F.normalize(z1, dim=1)
-                z2_normalized = F.normalize(z2, dim=1)
-                similarity_matrix = torch.mm(z1, z2.T)   # (N, N)
-                mask = torch.eye(similarity_matrix.size(0), dtype=torch.bool, device=similarity_matrix.device)
-                negative_similarity = similarity_matrix[~mask].view(similarity_matrix.size(0), -1)   # (N, N-1)
-                avg_neg_similarity = negative_similarity.mean().item()
-
-                self.parm_k = 1 - 1 / avg_neg_similarity
-        
         # ------- simplex loss -------
         simplex_loss = simplex_loss_func(
             z1, z2, target=target,

@@ -180,7 +180,7 @@ def main(cfg: DictConfig):
     # wandb logging
     if cfg.wandb.enabled:
         wandb_logger = WandbLogger(
-            name=cfg.name,
+            name=cfg.name + "_" + ckpt_path.split('/')[-2],
             project=cfg.wandb.project,
             entity=cfg.wandb.entity,
             offline=cfg.wandb.offline,
