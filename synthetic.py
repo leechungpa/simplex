@@ -160,7 +160,7 @@ def train_model(model, optimizer, train_loader, val_loader, test_loader, lose_ty
                 neg_sim_temp = similarity_matrix[~mask].view(similarity_matrix.size(0), -1)
                 neg_sim.append(neg_sim_temp.mean().item())
 
-        neg_sim = np.mean(neg_sim) + 0.2
+        neg_sim = np.mean(neg_sim)
         print(f"similarity of negative pairs: {neg_sim}")
         k = 1 - 1/neg_sim
 
