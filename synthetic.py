@@ -32,26 +32,28 @@ def set_seed(seed):
 
 
 class SyntheticDataset(Dataset):
-    def __init__(self, num_samples=10000, n_class=10, std=0.5, input_dim=128, affine_matrix=None, affine_bias=None):
+    def __init__(self, num_samples=10000, n_class=10, std=0.5, data_dim=128, transform_matrix=None):
         self.num_samples = num_samples
         self.n_class = n_class
-        self.input_dim = input_dim
+        self.data_dim = data_dim
 
         self.std = std
 
-        self.affine_matrix = affine_matrix if affine_matrix is not None else np.eye(input_dim)
-        self.affine_bias = affine_bias if affine_bias is not None else np.zeros(input_dim)
+        self.transform_matrix = transform_matrix if transform_matrix is not None else np.eye(data_dim)
 
         self.data, self.labels = self._generate_data()
 
     def _generate_data(self):
         data = []
         labels = []
+
+        rng = np.random.default_rng()
         for label in range(self.n_class):
-            mean = np.zeros(self.input_dim, dtype=np.float32)
+            mean = np.zeros(self.data_dim, dtype=np.float32)
             mean[label] = 1.0
-            features = np.random.normal(loc=mean, scale=self.std, size=(self.num_samples // self.n_class, self.input_dim))
-            features = np.dot(features, self.affine_matrix.T) + self.affine_bias
+            # features = np.random.normal(loc=mean, scale=self.std, size=(self.num_samples // self.n_class, self.data_dim))
+            features = rng.multivariate_normal(mean, np.eye(self.data_dim)*self.std, size=(self.num_samples // self.n_class))
+            features = np.dot(features, self.transform_matrix.T)
             data.append(features)
             labels.extend([label] * (self.num_samples // self.n_class))
         return torch.tensor(np.vstack(data), dtype=torch.float32), torch.tensor(labels, dtype=torch.long)
@@ -62,7 +64,8 @@ class SyntheticDataset(Dataset):
     def __getitem__(self, idx):
         return self.data[idx], self.labels[idx]
 
-class LabelMappedDataset(Dataset):
+
+class ReclassifyDataset(Dataset):
     def __init__(self, original_dataset, label_mapping):
         self.original_dataset = original_dataset
         self.label_mapping = label_mapping
@@ -76,27 +79,7 @@ class LabelMappedDataset(Dataset):
         data, original_label = self.original_dataset[idx]
         mapped_label = self.label_mapping[original_label]
         return data, torch.tensor(mapped_label, dtype=torch.long)
-    
 
-
-class SubsetByLabels(Dataset):
-    def __init__(self, original_dataset, allowed_labels):
-        self.original_dataset = original_dataset
-        self.allowed_labels = set(allowed_labels)
-
-        self.filtered_indices = [
-            idx for idx, (_, label) in enumerate(original_dataset)
-            if label in self.allowed_labels
-        ]
-
-        self.n_class = len(set(allowed_labels))
-
-    def __len__(self):
-        return len(self.filtered_indices)
-
-    def __getitem__(self, idx):
-        original_idx = self.filtered_indices[idx]
-        return self.original_dataset[original_idx]
 
 class BalancedBatchSampler(BatchSampler):
     """
@@ -105,7 +88,6 @@ class BalancedBatchSampler(BatchSampler):
     https://discuss.pytorch.org/t/load-the-same-number-of-data-per-class/65198/4
     https://github.com/adambielski/siamese-triplet
     """
-
     def __init__(self, dataset, n_classes, n_samples):
         loader = DataLoader(dataset)
         self.labels_list = []
@@ -123,7 +105,6 @@ class BalancedBatchSampler(BatchSampler):
         self.n_samples = n_samples
         self.dataset = dataset
         self.batch_size = self.n_samples * self.n_classes
-
 
     def __iter__(self):
         self.count = 0
@@ -179,9 +160,9 @@ def train_model(model, optimizer, train_loader, val_loader, test_loader, lose_ty
                 neg_sim_temp = similarity_matrix[~mask].view(similarity_matrix.size(0), -1)
                 neg_sim.append(neg_sim_temp.mean().item())
 
-        neg_sim = np.mean(neg_sim)
+        neg_sim = np.mean(neg_sim) + 0.2
+        print(f"similarity of negative pairs: {neg_sim}")
         k = 1 - 1/neg_sim
-        print(k)
 
     for epoch in range(num_epochs):
         model.train()
@@ -194,7 +175,7 @@ def train_model(model, optimizer, train_loader, val_loader, test_loader, lose_ty
             if lose_type == "simclr":
                 loss = simclr_loss_func(outputs, labels, 0.1)
             elif lose_type == "simplex":
-                loss = simplex_loss_func(outputs, outputs, labels, k=k, p=2, lamb=5)
+                loss = simplex_loss_func(outputs, outputs, labels, k=k, p=2, lamb=10)
             loss.backward()
             optimizer.step()
             
@@ -220,9 +201,7 @@ def train_model(model, optimizer, train_loader, val_loader, test_loader, lose_ty
     return acc_result
 
 
-def test_nn(net, memory_data_loader, test_data_loader,
-             top_k=200):
-    
+def test_nn(net, memory_data_loader, test_data_loader, top_k=200):
     net.eval()
     total_top1, total_num, feature_bank  = 0.0, 0, []
 
@@ -243,7 +222,6 @@ def test_nn(net, memory_data_loader, test_data_loader,
 
         # loop test data to predict the label by weighted knn search
         for data, target in test_data_loader:
-            # data, target = data.cuda(args.gpu, non_blocking=True), target.cuda(args.gpu, non_blocking=True)
             feature = net(data)
             feat = nn.functional.normalize(feature, dim=-1)
 
@@ -268,27 +246,38 @@ def test_nn(net, memory_data_loader, test_data_loader,
 
 if __name__ == "__main__":
     # model
-    input_dim = 32
+    data_dim = 64
     out_dim = 32
 
     # data
-    std_to_generate = 0.8
+    std_to_generate = 0.4
     n_class = 10
 
-    ##########
-    # Pre training
+    affine_matrix = np.random.rand(data_dim, data_dim)  # Random matrix for affine transformation
+
+    # affine_matrix = None
+
+
+    # Inputs for pre-training
     coarse_label = [0,0,1,1,2,2,3,3,4,4]
 
     batch_size = 100
-    pretrain_epoch = 50
+    pretrain_epoch = 30
 
 
+    # Inputs for finetuning
+    fine_labels = [0,1,2,3]
+    batch_size = 32
+
+    epoch_finetue = 20
+
+
+    ##########
+    # Pre training
     set_seed(1234)
-    affine_matrix = np.random.rand(input_dim, input_dim)  # Random matrix for affine transformation
-    affine_bias = np.random.rand(input_dim) 
 
-    train_dataset = SyntheticDataset(5000, n_class, std_to_generate, input_dim, affine_matrix, affine_bias)
-    test_dataset = SyntheticDataset(500, n_class, std_to_generate, input_dim, affine_matrix, affine_bias)
+    train_dataset = SyntheticDataset(5000, n_class, std_to_generate, data_dim, affine_matrix)
+    test_dataset = SyntheticDataset(500, n_class, std_to_generate, data_dim, affine_matrix)
 
     mean = train_dataset.data.mean(axis=0)
     std = train_dataset.data.std(axis=0)
@@ -296,8 +285,8 @@ if __name__ == "__main__":
     train_dataset.data = (train_dataset.data - mean) / std
     test_dataset.data = (test_dataset.data - mean) / std
 
-    coarse_train_dataset = LabelMappedDataset(train_dataset, coarse_label)
-    coarse_test_dataset = LabelMappedDataset(test_dataset, coarse_label)
+    coarse_train_dataset = ReclassifyDataset(train_dataset, coarse_label)
+    coarse_test_dataset = ReclassifyDataset(test_dataset, coarse_label)
     coarse_n_class = len(set(coarse_label))
 
     coarse_balanced_sampler = BalancedBatchSampler(coarse_train_dataset, coarse_n_class, batch_size//coarse_n_class)
@@ -307,19 +296,13 @@ if __name__ == "__main__":
     coarse_test_loader = DataLoader(coarse_test_dataset, batch_size=batch_size, shuffle=False)
 
 
-    model = SimpleNN(input_dim=input_dim, out_dim=out_dim)
+    model = SimpleNN(input_dim=data_dim, out_dim=out_dim)
     optimizer = optim.SGD(model.parameters(), lr=0.1)
 
     train_model(model, optimizer, coarse_train_loader, coarse_val_loader, coarse_test_loader, "simclr", num_epochs=pretrain_epoch)
 
     ##########
     # Finetuning
-    fine_labels = [0,1,2,3]
-    batch_size = 32
-
-    epoch_finetue = 30
-
-
     fine_n_class = len(set(fine_labels))
     indices = [idx for idx, label in enumerate(train_dataset.labels) if label in fine_labels]
     fine_train_dataset = Subset(train_dataset, indices)
@@ -338,12 +321,12 @@ if __name__ == "__main__":
     
     print("----simclr----")
     pretrained_model = copy.deepcopy(model)
-    finetune_optimizer = optim.SGD(pretrained_model.parameters(), lr=0.05)
+    finetune_optimizer = optim.SGD(pretrained_model.parameters(), lr=0.1)
     simclr_result = train_model(pretrained_model, finetune_optimizer, fine_train_loader, [fine_val_loader, coarse_val_loader], [fine_test_loader, coarse_test_loader], "simclr", num_epochs=epoch_finetue)
 
     print("----simplex----")
     pretrained_model = copy.deepcopy(model)
-    finetune_optimizer = optim.SGD(pretrained_model.parameters(), lr=0.05)
+    finetune_optimizer = optim.SGD(pretrained_model.parameters(), lr=0.5)
     simplex_result = train_model(pretrained_model, finetune_optimizer, fine_train_loader, [fine_val_loader, coarse_val_loader], [fine_test_loader, coarse_test_loader], "simplex", num_epochs=epoch_finetue)
 
     ##########
@@ -353,8 +336,16 @@ if __name__ == "__main__":
     simplex_x, simplex_y = zip(*simplex_result)
 
     plt.scatter(acc_finetune, acc_coarse, label='Pre-trained base model', color='black', s=100)
+
     plt.scatter(simclr_x, simclr_y, label='Fine-tuning using SimCLR', color='blue')
     plt.scatter(simplex_x, simplex_y, label='Fine-tuning using Simplex', color='red')
+    
+    for i, (x, y) in enumerate(zip(simclr_x, simclr_y), start=1):
+        plt.annotate(str(i), (x, y), textcoords="offset points", xytext=(5, 5), ha='center', color='blue')
+
+    for i, (x, y) in enumerate(zip(simplex_x, simplex_y), start=1):
+        plt.annotate(str(i), (x, y), textcoords="offset points", xytext=(5, 5), ha='center', color='red')
+
 
     plt.xlabel('Acc@1 (fine-tune task: subset of fine-grained classes)')
     plt.ylabel('Acc@1 (pre-train task: coarse-grained classes)')
