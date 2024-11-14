@@ -1,10 +1,11 @@
 import torch
 import torch.nn.functional as F
+from solo.utils.misc import gather
 
 
 def simplex_loss_func(
     z1: torch.Tensor, z2: torch.Tensor,
-    target: torch.Tensor|None,
+    target: torch.Tensor,
     k: int, p: int, lamb: float,
     rectify_large_neg_sim: bool = False, rectify_small_neg_sim: bool = False,
     unimodal: bool = True,
@@ -27,21 +28,23 @@ def simplex_loss_func(
     Returns:
         torch.Tensor: Simplex loss.
     """
-    batch_size = z1.size(0) # B
+    gathered_target = gather(target)
 
-    if target is None:
-        pos_mask = torch.eye(batch_size, device=z1.device, dtype=torch.bool) # ( B, B )
-    else:
-        target = target.unsqueeze(0)
-        pos_mask = target.t() == target
+    target = target.unsqueeze(0)
+    gathered_target = gathered_target.unsqueeze(0)
 
-    neg_mask = ~ pos_mask # ( B, B )
+    pos_mask = target.t() == gathered_target
+
+    neg_mask = ~ pos_mask
 
     # Calcuate the loss for both unimodal and bimodal CL
     z1 = F.normalize(z1, dim=1) # ( B, proj_output_dim )
     z2 = F.normalize(z2, dim=1) # ( B, proj_output_dim )
 
-    similiarity = torch.einsum("id, jd -> ij", z1, z2) # ( B, B )
+    batch_size = z1.size(0) # B
+
+    gathered_z2 = gather(z2)
+    similiarity = torch.einsum("id, jd -> ij", z1, gathered_z2)
 
     similiarity[pos_mask] = similiarity[pos_mask] - 1
     similiarity[neg_mask] = similiarity[neg_mask] + 1/(k-1)
@@ -57,6 +60,8 @@ def simplex_loss_func(
 
     loss = similiarity[pos_mask].sum() / batch_size + similiarity[neg_mask].sum() * lamb / (batch_size * (batch_size - 1))
 
+    ############
+    # To-Do: Remove the legacy.
     if unimodal:
         # Calcuate the additional loss terms for unimodal CL
         similiarity_z1 = torch.einsum("id, jd -> ij", z1, z1) # ( B, B )
@@ -78,5 +83,6 @@ def simplex_loss_func(
         similiarity_z2 = similiarity_z2.abs().pow(p)
 
         loss = loss + (similiarity_z1[neg_mask].sum()*lamb/2 + similiarity_z2[neg_mask].sum()*lamb/2) / (batch_size * (batch_size - 1))
+    ############
 
     return loss
