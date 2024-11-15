@@ -29,15 +29,6 @@ _N_CLASSES_PER_DATASET = {
     "imagenet100": 100,
 }
 
-_N_INSTANCES_PER_DATASET = {
-    "cifar10": 50000,
-    "cifar100": 50000,
-    "cifar100coarse": 50000,
-    # "stl10": _, # To-DO update
-    # "imagenet": _,
-    "imagenet100": 126689,
-}
-
 _SUPPORTED_DATASETS = [
     "cifar10",
     "cifar100",
@@ -137,7 +128,6 @@ def parse_cfg(cfg: omegaconf.DictConfig):
     # extra processing
     if cfg.data.dataset in _N_CLASSES_PER_DATASET:
         cfg.data.num_classes = _N_CLASSES_PER_DATASET[cfg.data.dataset]
-        cfg.data.num_instances = _N_INSTANCES_PER_DATASET[cfg.data.dataset]
     else:
         # hack to maintain the current pipeline
         # even if the custom dataset doesn't have any labels
@@ -165,14 +155,11 @@ def parse_cfg(cfg: omegaconf.DictConfig):
     cfg.optimizer.lr_method = omegaconf_select(cfg, "optimizer.lr_method", "linear")
     if cfg.optimizer.lr_method == "linear":
         # Linear scaling LR 
-        scale_factor = cfg.optimizer.batch_size * len(cfg.devices) * cfg.num_nodes / 256
+        scale_factor = cfg.optimizer.batch_size*len(cfg.devices)*cfg.num_nodes / 256
     elif cfg.optimizer.lr_method == "square_root":
         ## Square root LR
-        if len(cfg.devices) * cfg.num_nodes != 1:
-            raise ValueError("Not Implemented.")
-        scale_factor = (cfg.optimizer.batch_size)**(1/2)
+        scale_factor = (cfg.optimizer.batch_size*len(cfg.devices)*cfg.num_nodes)**(1/2)
     elif cfg.optimizer.lr_method == "without_scaling":
-        # LR itself 
         scale_factor = 1
     else:
         raise ValueError("Not Implemented.")
