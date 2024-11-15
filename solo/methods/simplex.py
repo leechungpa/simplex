@@ -139,7 +139,7 @@ class Simplex(BaseMethod):
         if self.supervised_simplex:
             target = batch[-1]
         else:
-            target = None
+            target = batch[0]
 
         out = super().training_step(batch, batch_idx)
 
