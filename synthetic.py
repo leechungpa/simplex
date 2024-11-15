@@ -1,6 +1,7 @@
 import os
 import random
 import copy
+from typing import List
 
 import torch
 import torch.nn as nn
@@ -66,9 +67,9 @@ class SyntheticDataset(Dataset):
 
 
 class ReclassifyDataset(Dataset):
-    def __init__(self, original_dataset, label_mapping):
+    def __init__(self, original_dataset: Dataset, label_mapping: List[int]):
         self.original_dataset = original_dataset
-        self.label_mapping = label_mapping
+        self.label_mapping = label_mapping   # maps the original labels to new labels
 
         self.n_class = len(set(label_mapping))
 
@@ -95,14 +96,19 @@ class BalancedBatchSampler(BatchSampler):
             self.labels_list.append(label)
         self.labels = torch.LongTensor(self.labels_list)
         self.labels_set = list(set(self.labels.numpy()))
+        
+        # dictionary mapping each label to the indices of its corresponding samples in the dataset
         self.label_to_indices = {label: np.where(self.labels.numpy() == label)[0]
                                  for label in self.labels_set}
+
         for l in self.labels_set:
             np.random.shuffle(self.label_to_indices[l])
+
+        # track the number of samples already used for each class
         self.used_label_indices_count = {label: 0 for label in self.labels_set}
         self.count = 0
         self.n_classes = n_classes
-        self.n_samples = n_samples
+        self.n_samples = n_samples   # number of samples to draw from each class in a single batch
         self.dataset = dataset
         self.batch_size = self.n_samples * self.n_classes
 
