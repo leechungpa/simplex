@@ -24,8 +24,9 @@ import torch
 import torch.nn as nn
 from solo.losses.simclr import simclr_loss_func
 from solo.methods.base import BaseMethod
+from solo.utils.eval_batch import evaluate_batch
 
-
+@evaluate_batch
 class SupCon(BaseMethod):
     def __init__(self, cfg: omegaconf.DictConfig):
         """Implements SupCon (https://arxiv.org/abs/2004.11362).
