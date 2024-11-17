@@ -12,16 +12,14 @@ import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import DataLoader, Dataset, Subset
 from torch.utils.data.sampler import BatchSampler
-import torch.nn.functional as F
 
 
 import numpy as np
-from tqdm import tqdm
 
 import matplotlib.pyplot as plt
 
 from solo.losses.simclr import simclr_loss_func
-from solo.losses.simplex import simplex_loss_func, simplex_loss_func_general
+from solo.losses.simplex import simplex_loss_func_general
 
 
 
@@ -272,18 +270,18 @@ if __name__ == "__main__":
 
     # Pre-training parameters
     parser.add_argument("--coarse_label", nargs="+", type=int, default=[0, 0, 1, 1, 2, 2, 3, 3, 4, 4], help="Coarse labels for pre-training.")
-    parser.add_argument("--batch_size", type=int, default=100, help="Batch size for pre-training.")
-    parser.add_argument("--epoch_pretrain", type=int, default=30, help="Number of pre-training epochs.")
+    parser.add_argument("--batchsize", type=int, default=1000, help="Batch size for pre-training.")
+    parser.add_argument("--epoch_pretrain", type=int, default=100, help="Number of pre-training epochs.")
 
     # Fine-tuning parameters
     parser.add_argument("--fine_labels", nargs="+", type=int, default=[0, 1, 2, 3], help="Labels for fine-tuning.")
-    parser.add_argument("--fine_tune_batch_size", type=int, default=32, help="Batch size for fine-tuning.")
-    parser.add_argument("--epoch_finetune", type=int, default=20, help="Number of fine-tuning epochs.")
+    parser.add_argument("--batchsize_finetune", type=int, default=32, help="Batch size for fine-tuning.")
+    parser.add_argument("--epoch_finetune", type=int, default=30, help="Number of fine-tuning epochs.")
 
     # Hyper parameters
     parser.add_argument("--seed", type=int, default=1234, help="Seed")
 
-    parser.add_argument("--simclr_t", type=float, default=0.1, help="Temperature parameter for SimCLR loss")
+    parser.add_argument("--simclr_t", type=float, default=0.5, help="Temperature parameter for SimCLR loss")
     parser.add_argument("--simplex_lamb", type=float, default=1.0, help="Lambda parameter for simplex loss.")
     parser.add_argument("--simplex_use_centroid", action="store_true", help="Using centroid for simplex loss.")
 
@@ -319,14 +317,14 @@ if __name__ == "__main__":
     coarse_test_dataset = ReclassifyDataset(test_dataset, args.coarse_label)
     coarse_n_class = len(set(args.coarse_label))
 
-    coarse_balanced_sampler = BalancedBatchSampler(coarse_train_dataset, coarse_n_class, args.batch_size//coarse_n_class)
+    coarse_balanced_sampler = BalancedBatchSampler(coarse_train_dataset, coarse_n_class, args.batchsize//coarse_n_class)
 
     coarse_train_loader = DataLoader(coarse_train_dataset, batch_sampler=coarse_balanced_sampler)
-    coarse_val_loader = DataLoader(coarse_train_dataset, batch_size=args.batch_size, shuffle=False)
-    coarse_test_loader = DataLoader(coarse_test_dataset, batch_size=args.batch_size, shuffle=False)
+    coarse_val_loader = DataLoader(coarse_train_dataset, batch_size=args.batchsize, shuffle=False)
+    coarse_test_loader = DataLoader(coarse_test_dataset, batch_size=args.batchsize, shuffle=False)
 
     model = SimpleNN(input_dim=args.data_dim, out_dim=args.out_dim)
-    optimizer = optim.SGD(model.parameters(), lr=args.lr_pretrain_simclr)
+    optimizer = optim.SGD(model.parameters(), lr=args.lr_pretrain_simclr, weight_decay=1e-6)
 
     train_model(
         model, optimizer,
@@ -339,14 +337,14 @@ if __name__ == "__main__":
     fine_n_class = len(set(args.fine_labels))
     indices = [idx for idx, label in enumerate(train_dataset.labels) if label in args.fine_labels]
     fine_train_dataset = Subset(train_dataset, indices)
-    fine_balanced_sampler = BalancedBatchSampler(fine_train_dataset, fine_n_class, args.fine_tune_batch_size//fine_n_class)
+    fine_balanced_sampler = BalancedBatchSampler(fine_train_dataset, fine_n_class, args.batchsize_finetune//fine_n_class)
 
     indices = [idx for idx, label in enumerate(test_dataset.labels) if label in args.fine_labels]
     fine_test_dataset = Subset(test_dataset, indices)
 
     fine_train_loader = DataLoader(fine_train_dataset, batch_sampler=fine_balanced_sampler)
-    fine_val_loader = DataLoader(fine_train_dataset, batch_size=args.fine_tune_batch_size, shuffle=False)
-    fine_test_loader = DataLoader(fine_test_dataset, batch_size=args.fine_tune_batch_size, shuffle=False)
+    fine_val_loader = DataLoader(fine_train_dataset, batch_size=args.batchsize_finetune, shuffle=False)
+    fine_test_loader = DataLoader(fine_test_dataset, batch_size=args.batchsize_finetune, shuffle=False)
 
     acc_finetune = test_nn(model, fine_val_loader, fine_test_loader, top_k=200)
     acc_coarse = test_nn(model, coarse_val_loader, coarse_test_loader, top_k=200)
