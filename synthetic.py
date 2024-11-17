@@ -46,7 +46,9 @@ def set_seed(seed):
 
 
 class SyntheticDataset(Dataset):
-    def __init__(self, num_samples=10000, n_class=10, std=0.5, data_dim=128, transform_matrix=None):
+    def __init__(self, num_samples=10000, n_class=10, std=0.5, data_dim=128, transform_matrix=None, seed=1234):
+        self.seed = seed
+
         self.num_samples = num_samples
         self.n_class = n_class
         self.data_dim = data_dim
@@ -57,11 +59,12 @@ class SyntheticDataset(Dataset):
 
         self.data, self.labels = self._generate_data()
 
+
     def _generate_data(self):
         data = []
         labels = []
 
-        rng = np.random.default_rng()
+        rng = np.random.default_rng(self.seed)
         for label in range(self.n_class):
             mean = np.zeros(self.data_dim, dtype=np.float32)
             mean[label] = 1.0
@@ -270,7 +273,7 @@ if __name__ == "__main__":
     # Pre-training parameters
     parser.add_argument("--coarse_label", nargs="+", type=int, default=[0, 0, 1, 1, 2, 2, 3, 3, 4, 4], help="Coarse labels for pre-training.")
     parser.add_argument("--batch_size", type=int, default=100, help="Batch size for pre-training.")
-    parser.add_argument("--pretrain_epoch", type=int, default=30, help="Number of pre-training epochs.")
+    parser.add_argument("--epoch_pretrain", type=int, default=30, help="Number of pre-training epochs.")
 
     # Fine-tuning parameters
     parser.add_argument("--fine_labels", nargs="+", type=int, default=[0, 1, 2, 3], help="Labels for fine-tuning.")
@@ -302,8 +305,8 @@ if __name__ == "__main__":
     else:
         transformation_matrix = None
 
-    train_dataset = SyntheticDataset(args.n_train, args.n_class, args.std_to_generate, args.data_dim, transformation_matrix)
-    test_dataset = SyntheticDataset(args.n_test, args.n_class, args.std_to_generate, args.data_dim, transformation_matrix)
+    train_dataset = SyntheticDataset(args.n_train, args.n_class, args.std_to_generate, args.data_dim, transformation_matrix, args.seed)
+    test_dataset = SyntheticDataset(args.n_test, args.n_class, args.std_to_generate, args.data_dim, transformation_matrix, args.seed)
 
     if args.normalize_data:
         mean = train_dataset.data.mean(axis=0)
@@ -328,7 +331,7 @@ if __name__ == "__main__":
     train_model(
         model, optimizer,
         coarse_train_loader, coarse_val_loader, coarse_test_loader,
-        "simclr", args.pretrain_epoch, args
+        "simclr", args.epoch_pretrain, args
     )
 
     ##########
@@ -349,20 +352,21 @@ if __name__ == "__main__":
     acc_coarse = test_nn(model, coarse_val_loader, coarse_test_loader, top_k=200)
     print(f"Before fine-tuning: {acc_finetune:.2f}, {acc_coarse:.2f}")
     
+
     print("----simclr----")
-    pretrained_model = copy.deepcopy(model)
-    finetune_optimizer = optim.SGD(pretrained_model.parameters(), lr=args.lr_simclr)
+    pretrained_model_simclr = copy.deepcopy(model)
+    finetune_optimizer_simclr = optim.SGD(pretrained_model_simclr.parameters(), lr=args.lr_simclr)
     simclr_result = train_model(
-        pretrained_model, finetune_optimizer,
+        pretrained_model_simclr, finetune_optimizer_simclr,
         fine_train_loader, [fine_val_loader, coarse_val_loader], [fine_test_loader, coarse_test_loader],
         "simclr", args.epoch_finetune, args=args
     )
 
     print("----simplex----")
-    pretrained_model = copy.deepcopy(model)
-    finetune_optimizer = optim.SGD(pretrained_model.parameters(), lr=args.lr_simplex)
+    pretrained_model_simplex = copy.deepcopy(model)
+    finetune_optimizer_simplex = optim.SGD(pretrained_model_simplex.parameters(), lr=args.lr_simplex)
     simplex_result = train_model(
-        pretrained_model, finetune_optimizer,
+        pretrained_model_simplex, finetune_optimizer_simplex,
         fine_train_loader, [fine_val_loader, coarse_val_loader], [fine_test_loader, coarse_test_loader],
         "simplex", args.epoch_finetune, args=args
     )
