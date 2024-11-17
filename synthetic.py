@@ -3,6 +3,10 @@ import random
 import copy
 from typing import List
 
+import argparse
+
+from prettytable import PrettyTable
+
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -17,7 +21,16 @@ from tqdm import tqdm
 import matplotlib.pyplot as plt
 
 from solo.losses.simclr import simclr_loss_func
-from solo.losses.simplex import simplex_loss_func
+from solo.losses.simplex import simplex_loss_func, simplex_loss_func_general
+
+
+
+def get_args_table(args_dict):
+    table = PrettyTable(['Arg', 'Value'])
+    for arg, val in args_dict.items():
+        table.add_row([arg, val])
+    return table
+
 
 
 def set_seed(seed):
@@ -148,27 +161,13 @@ class SimpleNN(nn.Module):
         return x
 
 
-def train_model(model, optimizer, train_loader, val_loader, test_loader, lose_type, num_epochs=10):
+def train_model(model, optimizer, train_loader, val_loader, test_loader, lose_type, num_epochs, args):
     acc_result = []
 
     if lose_type == "simplex":
-        neg_sim = []
-        model.eval()
-        for inputs, labels in train_loader:
-            with torch.no_grad():
-                outputs = model(inputs)
-                normalized_outputs = F.normalize(outputs, dim=1)
-                similarity_matrix = torch.mm(normalized_outputs, normalized_outputs.T)
-
-                target = labels.unsqueeze(0)
-                mask = target.t() == target
-                
-                neg_sim_temp = similarity_matrix[~mask].view(similarity_matrix.size(0), -1)
-                neg_sim.append(neg_sim_temp.mean().item())
-
-        neg_sim = np.mean(neg_sim)
-        print(f"similarity of negative pairs: {neg_sim}")
-        k = 1 - 1/neg_sim
+        all_labels = torch.cat([labels for _, labels in train_loader])
+        k = torch.unique(all_labels).numel()
+        print(f"'k' of simplex loss: {k} (=number of classes)")
 
     for epoch in range(num_epochs):
         model.train()
@@ -179,9 +178,9 @@ def train_model(model, optimizer, train_loader, val_loader, test_loader, lose_ty
             outputs = model(inputs)
 
             if lose_type == "simclr":
-                loss = simclr_loss_func(outputs, labels, 0.1)
+                loss = simclr_loss_func(outputs, labels, args.simclr_t)
             elif lose_type == "simplex":
-                loss = simplex_loss_func(outputs, outputs, labels, k=k, p=2, lamb=10)
+                loss = simplex_loss_func_general(outputs, outputs, labels, k=k, p=2, lamb=args.simplex_lamb, use_centroid=args.simplex_use_centroid)
             loss.backward()
             optimizer.step()
             
@@ -251,75 +250,100 @@ def test_nn(net, memory_data_loader, test_data_loader, top_k=200):
 
 
 if __name__ == "__main__":
-    # model
-    data_dim = 64
-    out_dim = 32
+    parser = argparse.ArgumentParser(description="Synthetic data experiment.")
+    
+    # Model parameters
+    parser.add_argument("--out_dim", type=int, default=16, help="Output dimensionality of the model.")
 
-    # data
-    std_to_generate = 0.4
-    n_class = 10
+    # Data parameters
+    parser.add_argument("--data_dim", type=int, default=32, help="Dimensionality of the input data.")
 
-    affine_matrix = np.random.rand(data_dim, data_dim)  # Random matrix for affine transformation
+    parser.add_argument("--n_train", type=int, default=5000, help="Training sample size.")
+    parser.add_argument("--n_test", type=int, default=500, help="Testing sample size.")
 
-    # affine_matrix = None
+    parser.add_argument("--std_to_generate", type=float, default=0.3, help="Standard deviation for synthetic data generation.")
 
+    parser.add_argument("--n_class", type=int, default=10, help="Number of classes in the dataset.")
+    parser.add_argument("--linear_transform_data", action="store_true", help="Whether to apply a linear transformation to the data.")
+    parser.add_argument("--normalize_data", action="store_true", help="Whether to normalize the data.")
 
-    # Inputs for pre-training
-    coarse_label = [0,0,1,1,2,2,3,3,4,4]
+    # Pre-training parameters
+    parser.add_argument("--coarse_label", nargs="+", type=int, default=[0, 0, 1, 1, 2, 2, 3, 3, 4, 4], help="Coarse labels for pre-training.")
+    parser.add_argument("--batch_size", type=int, default=100, help="Batch size for pre-training.")
+    parser.add_argument("--pretrain_epoch", type=int, default=30, help="Number of pre-training epochs.")
 
-    batch_size = 100
-    pretrain_epoch = 30
+    # Fine-tuning parameters
+    parser.add_argument("--fine_labels", nargs="+", type=int, default=[0, 1, 2, 3], help="Labels for fine-tuning.")
+    parser.add_argument("--fine_tune_batch_size", type=int, default=32, help="Batch size for fine-tuning.")
+    parser.add_argument("--epoch_finetune", type=int, default=20, help="Number of fine-tuning epochs.")
 
+    # Hyper parameters
+    parser.add_argument("--seed", type=int, default=1234, help="Seed")
 
-    # Inputs for finetuning
-    fine_labels = [0,1,2,3]
-    batch_size = 32
+    parser.add_argument("--simclr_t", type=float, default=0.1, help="Temperature parameter for SimCLR loss")
+    parser.add_argument("--simplex_lamb", type=float, default=1.0, help="Lambda parameter for simplex loss.")
+    parser.add_argument("--simplex_use_centroid", action="store_true", help="Using centroid for simplex loss.")
 
-    epoch_finetue = 20
+    parser.add_argument("--lr_pretrain_simclr", type=float, default=1.0, help="Learning rate for SimCLR pre-training.")
+    parser.add_argument("--lr_simclr", type=float, default=0.1, help="Learning rate for SimCLR fine-tuning.")
+    parser.add_argument("--lr_simplex", type=float, default=0.1, help="Learning rate for Simplex fine-tuning.")
 
+    # Output
+    parser.add_argument("--output_name", type=str, default="./synthetic_result.png", help="Path to save the output plot.")
+
+    args = parser.parse_args()
+    print(get_args_table(vars(args)))
 
     ##########
     # Pre training
-    set_seed(1234)
+    set_seed(args.seed)
+    if args.linear_transform_data:
+        transformation_matrix = np.random.rand(args.data_dim, args.data_dim)  # Random matrix for transformation
+    else:
+        transformation_matrix = None
 
-    train_dataset = SyntheticDataset(5000, n_class, std_to_generate, data_dim, affine_matrix)
-    test_dataset = SyntheticDataset(500, n_class, std_to_generate, data_dim, affine_matrix)
+    train_dataset = SyntheticDataset(args.n_train, args.n_class, args.std_to_generate, args.data_dim, transformation_matrix)
+    test_dataset = SyntheticDataset(args.n_test, args.n_class, args.std_to_generate, args.data_dim, transformation_matrix)
 
-    mean = train_dataset.data.mean(axis=0)
-    std = train_dataset.data.std(axis=0)
+    if args.normalize_data:
+        mean = train_dataset.data.mean(axis=0)
+        std = train_dataset.data.std(axis=0)
 
-    train_dataset.data = (train_dataset.data - mean) / std
-    test_dataset.data = (test_dataset.data - mean) / std
+        train_dataset.data = (train_dataset.data - mean) / std
+        test_dataset.data = (test_dataset.data - mean) / std
 
-    coarse_train_dataset = ReclassifyDataset(train_dataset, coarse_label)
-    coarse_test_dataset = ReclassifyDataset(test_dataset, coarse_label)
-    coarse_n_class = len(set(coarse_label))
+    coarse_train_dataset = ReclassifyDataset(train_dataset, args.coarse_label)
+    coarse_test_dataset = ReclassifyDataset(test_dataset, args.coarse_label)
+    coarse_n_class = len(set(args.coarse_label))
 
-    coarse_balanced_sampler = BalancedBatchSampler(coarse_train_dataset, coarse_n_class, batch_size//coarse_n_class)
+    coarse_balanced_sampler = BalancedBatchSampler(coarse_train_dataset, coarse_n_class, args.batch_size//coarse_n_class)
 
     coarse_train_loader = DataLoader(coarse_train_dataset, batch_sampler=coarse_balanced_sampler)
-    coarse_val_loader = DataLoader(coarse_train_dataset, batch_size=batch_size, shuffle=False)
-    coarse_test_loader = DataLoader(coarse_test_dataset, batch_size=batch_size, shuffle=False)
+    coarse_val_loader = DataLoader(coarse_train_dataset, batch_size=args.batch_size, shuffle=False)
+    coarse_test_loader = DataLoader(coarse_test_dataset, batch_size=args.batch_size, shuffle=False)
 
+    model = SimpleNN(input_dim=args.data_dim, out_dim=args.out_dim)
+    optimizer = optim.SGD(model.parameters(), lr=args.lr_pretrain_simclr)
 
-    model = SimpleNN(input_dim=data_dim, out_dim=out_dim)
-    optimizer = optim.SGD(model.parameters(), lr=0.1)
-
-    train_model(model, optimizer, coarse_train_loader, coarse_val_loader, coarse_test_loader, "simclr", num_epochs=pretrain_epoch)
+    train_model(
+        model, optimizer,
+        coarse_train_loader, coarse_val_loader, coarse_test_loader,
+        "simclr", args.pretrain_epoch, args
+    )
 
     ##########
     # Finetuning
-    fine_n_class = len(set(fine_labels))
-    indices = [idx for idx, label in enumerate(train_dataset.labels) if label in fine_labels]
+    fine_n_class = len(set(args.fine_labels))
+    indices = [idx for idx, label in enumerate(train_dataset.labels) if label in args.fine_labels]
     fine_train_dataset = Subset(train_dataset, indices)
-    fine_balanced_sampler = BalancedBatchSampler(fine_train_dataset, fine_n_class, batch_size//fine_n_class)
+    fine_balanced_sampler = BalancedBatchSampler(fine_train_dataset, fine_n_class, args.fine_tune_batch_size//fine_n_class)
 
-    indices = [idx for idx, label in enumerate(test_dataset.labels) if label in fine_labels]
+    indices = [idx for idx, label in enumerate(test_dataset.labels) if label in args.fine_labels]
     fine_test_dataset = Subset(test_dataset, indices)
 
     fine_train_loader = DataLoader(fine_train_dataset, batch_sampler=fine_balanced_sampler)
-    fine_val_loader = DataLoader(fine_train_dataset, batch_size=batch_size, shuffle=False)
-    fine_test_loader = DataLoader(fine_test_dataset, batch_size=batch_size, shuffle=False)
+    fine_val_loader = DataLoader(fine_train_dataset, batch_size=args.fine_tune_batch_size, shuffle=False)
+    fine_test_loader = DataLoader(fine_test_dataset, batch_size=args.fine_tune_batch_size, shuffle=False)
 
     acc_finetune = test_nn(model, fine_val_loader, fine_test_loader, top_k=200)
     acc_coarse = test_nn(model, coarse_val_loader, coarse_test_loader, top_k=200)
@@ -327,13 +351,21 @@ if __name__ == "__main__":
     
     print("----simclr----")
     pretrained_model = copy.deepcopy(model)
-    finetune_optimizer = optim.SGD(pretrained_model.parameters(), lr=0.1)
-    simclr_result = train_model(pretrained_model, finetune_optimizer, fine_train_loader, [fine_val_loader, coarse_val_loader], [fine_test_loader, coarse_test_loader], "simclr", num_epochs=epoch_finetue)
+    finetune_optimizer = optim.SGD(pretrained_model.parameters(), lr=args.lr_simclr)
+    simclr_result = train_model(
+        pretrained_model, finetune_optimizer,
+        fine_train_loader, [fine_val_loader, coarse_val_loader], [fine_test_loader, coarse_test_loader],
+        "simclr", args.epoch_finetune, args=args
+    )
 
     print("----simplex----")
     pretrained_model = copy.deepcopy(model)
-    finetune_optimizer = optim.SGD(pretrained_model.parameters(), lr=0.5)
-    simplex_result = train_model(pretrained_model, finetune_optimizer, fine_train_loader, [fine_val_loader, coarse_val_loader], [fine_test_loader, coarse_test_loader], "simplex", num_epochs=epoch_finetue)
+    finetune_optimizer = optim.SGD(pretrained_model.parameters(), lr=args.lr_simplex)
+    simplex_result = train_model(
+        pretrained_model, finetune_optimizer,
+        fine_train_loader, [fine_val_loader, coarse_val_loader], [fine_test_loader, coarse_test_loader],
+        "simplex", args.epoch_finetune, args=args
+    )
 
     ##########
     # Plot the result
@@ -358,5 +390,5 @@ if __name__ == "__main__":
     plt.legend(loc='lower left')
     plt.grid()
 
-    plt.savefig("./synthetic_result.png")
+    plt.savefig(args.output_name)
     plt.close()
