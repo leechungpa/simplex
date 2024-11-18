@@ -275,7 +275,7 @@ if __name__ == "__main__":
     fine_labels = [0,1,2,3]
     batch_size = 32
 
-    epoch_finetue = 20
+    epoch_finetune = 20
 
 
     ##########
@@ -328,12 +328,12 @@ if __name__ == "__main__":
     print("----simclr----")
     pretrained_model = copy.deepcopy(model)
     finetune_optimizer = optim.SGD(pretrained_model.parameters(), lr=0.1)
-    simclr_result = train_model(pretrained_model, finetune_optimizer, fine_train_loader, [fine_val_loader, coarse_val_loader], [fine_test_loader, coarse_test_loader], "simclr", num_epochs=epoch_finetue)
+    simclr_result = train_model(pretrained_model, finetune_optimizer, fine_train_loader, [fine_val_loader, coarse_val_loader], [fine_test_loader, coarse_test_loader], "simclr", num_epochs=epoch_finetune)
 
     print("----simplex----")
     pretrained_model = copy.deepcopy(model)
     finetune_optimizer = optim.SGD(pretrained_model.parameters(), lr=0.5)
-    simplex_result = train_model(pretrained_model, finetune_optimizer, fine_train_loader, [fine_val_loader, coarse_val_loader], [fine_test_loader, coarse_test_loader], "simplex", num_epochs=epoch_finetue)
+    simplex_result = train_model(pretrained_model, finetune_optimizer, fine_train_loader, [fine_val_loader, coarse_val_loader], [fine_test_loader, coarse_test_loader], "simplex", num_epochs=epoch_finetune)
 
     ##########
     # Plot the result
