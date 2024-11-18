@@ -1,10 +1,56 @@
 import torch
 import torch.nn.functional as F
+from solo.utils.misc import gather
+
+
+def simplex_loss_func_general(
+    z1: torch.Tensor, z2: torch.Tensor,
+    target: torch.Tensor,
+    k: int, p: int, lamb: float,
+    centroid: torch.Tensor|None = None,
+    rectify_large_neg_sim: bool = False, rectify_small_neg_sim: bool = False,
+) -> torch.Tensor:
+    gathered_target = gather(target)
+
+    target = target.unsqueeze(0)
+    gathered_target = gathered_target.unsqueeze(0)
+
+    pos_mask = target.t() == gathered_target
+
+    neg_mask = ~ pos_mask
+
+    z1 = F.normalize(z1, dim=1) # ( B, proj_output_dim )
+    z2 = F.normalize(z2, dim=1) # ( B, proj_output_dim )
+
+    if centroid is not None:
+        z1 = z1 - centroid
+        z2 = z2 - centroid
+        scale = 1 - torch.dot(centroid.t(), centroid)
+    else:
+        scale = 1
+
+    gathered_z2 = gather(z2)
+    similiarity = torch.einsum("id, jd -> ij", z1, gathered_z2)
+
+    similiarity[pos_mask] = similiarity[pos_mask] - 1 * scale
+    similiarity[neg_mask] = similiarity[neg_mask] + 1/(k-1) * scale
+
+    if rectify_large_neg_sim:
+        # adjust to 0 if the similarity is greater than -1/(k-1)
+        similiarity[neg_mask] = -F.relu(-similiarity[neg_mask])
+    if rectify_small_neg_sim:
+        # adjust to 0 if the similarity is simply less than -1/(k-1)
+        similiarity[neg_mask] = F.relu(similiarity[neg_mask])
+
+    similiarity = similiarity.abs().pow(p)
+
+    loss = similiarity[pos_mask].mean() + similiarity[neg_mask].mean() * lamb
+    return loss
 
 
 def simplex_loss_func(
     z1: torch.Tensor, z2: torch.Tensor,
-    target: torch.Tensor|None,
+    target: torch.Tensor,
     k: int, p: int, lamb: float,
     rectify_large_neg_sim: bool = False, rectify_small_neg_sim: bool = False,
     unimodal: bool = True,
@@ -27,21 +73,21 @@ def simplex_loss_func(
     Returns:
         torch.Tensor: Simplex loss.
     """
-    batch_size = z1.size(0) # B
+    gathered_target = gather(target)
 
-    if target is None:
-        pos_mask = torch.eye(batch_size, device=z1.device, dtype=torch.bool) # ( B, B )
-    else:
-        target = target.unsqueeze(0)
-        pos_mask = target.t() == target
+    target = target.unsqueeze(0)
+    gathered_target = gathered_target.unsqueeze(0)
 
-    neg_mask = ~ pos_mask # ( B, B )
+    pos_mask = target.t() == gathered_target
+
+    neg_mask = ~ pos_mask
 
     # Calcuate the loss for both unimodal and bimodal CL
     z1 = F.normalize(z1, dim=1) # ( B, proj_output_dim )
     z2 = F.normalize(z2, dim=1) # ( B, proj_output_dim )
 
-    similiarity = torch.einsum("id, jd -> ij", z1, z2) # ( B, B )
+    gathered_z2 = gather(z2)
+    similiarity = torch.einsum("id, jd -> ij", z1, gathered_z2)
 
     similiarity[pos_mask] = similiarity[pos_mask] - 1
     similiarity[neg_mask] = similiarity[neg_mask] + 1/(k-1)
@@ -55,8 +101,10 @@ def simplex_loss_func(
 
     similiarity = similiarity.abs().pow(p)
 
-    loss = similiarity[pos_mask].sum() / batch_size + similiarity[neg_mask].sum() * lamb / (batch_size * (batch_size - 1))
+    loss = similiarity[pos_mask].mean() + similiarity[neg_mask].mean() * lamb
 
+    ############
+    # To-Do: Remove the legacy.
     if unimodal:
         # Calcuate the additional loss terms for unimodal CL
         similiarity_z1 = torch.einsum("id, jd -> ij", z1, z1) # ( B, B )
@@ -77,6 +125,7 @@ def simplex_loss_func(
         similiarity_z1 = similiarity_z1.abs().pow(p)
         similiarity_z2 = similiarity_z2.abs().pow(p)
 
-        loss = loss + (similiarity_z1[neg_mask].sum()*lamb/2 + similiarity_z2[neg_mask].sum()*lamb/2) / (batch_size * (batch_size - 1))
+        loss = loss + similiarity_z1[neg_mask].mean()*lamb/2 + similiarity_z2[neg_mask].mean()*lamb/2
+    ############
 
     return loss

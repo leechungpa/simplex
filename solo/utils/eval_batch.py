@@ -31,14 +31,21 @@ def _evaluate_batch(func):
                     z1 = F.normalize(self.projector(self.backbone(X[0]))) # ( B, proj_output_dim )
                     z2 = F.normalize(self.projector(self.backbone(X[1]))) # ( B, proj_output_dim )
 
+                    centroid_z1 = z1.mean(0)
+                    centroid_z2 = z2.mean(0)
+                    centroid = (centroid_z1+centroid_z2) / 2
+
                     pos_sim, neg_sim = eval_similarity(z1, z2)
 
                     # TBD: if self.evaluate_batch.type == "all":
                     result_before = {
                         "alignment": eval_alignment(z1, z2),
                         "uniformity": (eval_uniformity(z1)+eval_uniformity(z2)) / 2,
-                        "pos_similarity": pos_sim,
-                        "neg_similarity": neg_sim,
+                        "pos_sim": pos_sim,
+                        "neg_sim": neg_sim,
+                        "centroid": centroid.norm(p=2).item(),
+                        "centroid_z1": centroid_z1.norm(p=2).item(),
+                        "centroid_z2": centroid_z2.norm(p=2).item(),
                     }
                     for key, value in result_before.items():
                         self.log("[before] "+key, value, on_epoch=True, sync_dist=True)
@@ -57,15 +64,22 @@ def _evaluate_batch(func):
             with torch.no_grad():
                 z1 = F.normalize(self.projector(self.backbone(X[0]))) # ( B, proj_output_dim )
                 z2 = F.normalize(self.projector(self.backbone(X[1]))) # ( B, proj_output_dim )
-                
+
+                centroid_z1 = z1.mean(0)
+                centroid_z2 = z2.mean(0)
+                centroid = (centroid_z1+centroid_z2) / 2
+
                 pos_sim, pos_sim_std, neg_sim, neg_sim_std = eval_similarity(z1, z2, show_std=True)
 
                 # TBD: if self.evaluate_batch.type == "all":
                 result_after = {
                     "alignment": eval_alignment(z1, z2),
                     "uniformity": (eval_uniformity(z1)+eval_uniformity(z2)) / 2,
-                    "pos_similarity": pos_sim,
-                    "neg_similarity": neg_sim,
+                    "pos_sim": pos_sim,
+                    "neg_sim": neg_sim,
+                    "centroid": centroid.norm(p=2).item(),
+                    "centroid_z1": centroid_z1.norm(p=2).item(),
+                    "centroid_z2": centroid_z2.norm(p=2).item(),
                 }
                 for key, value in result_after.items():
                     self.log("[after] "+key, value, on_epoch=True, sync_dist=True)
