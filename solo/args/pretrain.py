@@ -157,8 +157,8 @@ def parse_cfg(cfg: omegaconf.DictConfig):
         # Linear scaling LR 
         scale_factor = cfg.optimizer.batch_size*len(cfg.devices)*cfg.num_nodes / 256
     elif cfg.optimizer.lr_method == "square_root":
-        ## Square root LR
-        scale_factor = (cfg.optimizer.batch_size*len(cfg.devices)*cfg.num_nodes)**(1/2)
+        # Square root LR
+        scale_factor = (cfg.optimizer.batch_size * len(cfg.devices) * cfg.num_nodes)**(1/2)
     elif cfg.optimizer.lr_method == "without_scaling":
         scale_factor = 1
     else:
