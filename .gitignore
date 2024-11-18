@@ -169,3 +169,4 @@ cython_debug/
 
 scripts/_*
 scripts/wandb/_*
+synthetic_result.png
