@@ -7,7 +7,7 @@ def simplex_loss_func_general(
     z1: torch.Tensor, z2: torch.Tensor,
     target: torch.Tensor,
     k: int, p: int, lamb: float,
-    use_centroid: bool = False, stop_gradient_centroid: bool = True,
+    centroid: torch.Tensor|None = None,
     rectify_large_neg_sim: bool = False, rectify_small_neg_sim: bool = False,
 ) -> torch.Tensor:
     gathered_target = gather(target)
@@ -22,15 +22,9 @@ def simplex_loss_func_general(
     z1 = F.normalize(z1, dim=1) # ( B, proj_output_dim )
     z2 = F.normalize(z2, dim=1) # ( B, proj_output_dim )
 
-    if use_centroid:
-        centroid = (z1.mean(0) + z2.mean(0)) / 2 # ( proj_output_dim )
-
-        if stop_gradient_centroid:
-            centroid = centroid.detach()
-
+    if centroid is not None:
         z1 = z1 - centroid
         z2 = z2 - centroid
-
         scale = 1 - torch.dot(centroid.t(), centroid)
     else:
         scale = 1

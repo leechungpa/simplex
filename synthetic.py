@@ -12,6 +12,7 @@ import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import DataLoader, Dataset, Subset
 from torch.utils.data.sampler import BatchSampler
+import torch.nn.functional as F
 
 
 import numpy as np
@@ -22,14 +23,13 @@ from solo.losses.simclr import simclr_loss_func
 from solo.losses.simplex import simplex_loss_func_general
 
 
-
+############
+# Utilities
 def get_args_table(args_dict):
     table = PrettyTable(['Arg', 'Value'])
     for arg, val in args_dict.items():
         table.add_row([arg, val])
     return table
-
-
 
 def set_seed(seed):
     random.seed(seed)
@@ -43,6 +43,8 @@ def set_seed(seed):
     print("Seed everything: {}".format(seed))
 
 
+############
+# Datasets
 class SyntheticDataset(Dataset):
     def __init__(self, num_samples=10000, n_class=10, std=0.5, data_dim=128, transform_matrix=None, seed=1234):
         self.seed = seed
@@ -50,13 +52,11 @@ class SyntheticDataset(Dataset):
         self.num_samples = num_samples
         self.n_class = n_class
         self.data_dim = data_dim
-
         self.std = std
 
         self.transform_matrix = transform_matrix if transform_matrix is not None else np.eye(data_dim)
 
         self.data, self.labels = self._generate_data()
-
 
     def _generate_data(self):
         data = []
@@ -79,7 +79,6 @@ class SyntheticDataset(Dataset):
     def __getitem__(self, idx):
         return self.data[idx], self.labels[idx]
 
-
 class ReclassifyDataset(Dataset):
     def __init__(self, original_dataset: Dataset, label_mapping: List[int]):
         self.original_dataset = original_dataset
@@ -94,7 +93,6 @@ class ReclassifyDataset(Dataset):
         data, original_label = self.original_dataset[idx]
         mapped_label = self.label_mapping[original_label]
         return data, torch.tensor(mapped_label, dtype=torch.long)
-
 
 class BalancedBatchSampler(BatchSampler):
     """
@@ -148,6 +146,8 @@ class BalancedBatchSampler(BatchSampler):
         return len(self.dataset) // self.batch_size
 
 
+############
+# Model
 class SimpleNN(nn.Module):
     def __init__(self, input_dim, out_dim):
         super(SimpleNN, self).__init__()
@@ -162,13 +162,55 @@ class SimpleNN(nn.Module):
         return x
 
 
+############
+# Trainer
 def train_model(model, optimizer, train_loader, val_loader, test_loader, lose_type, num_epochs, args):
     acc_result = []
 
     if lose_type == "simplex":
-        all_labels = torch.cat([labels for _, labels in train_loader])
-        k = torch.unique(all_labels).numel()
-        print(f"'k' of simplex loss: {k} (=number of classes)")
+        model.eval()
+        ####
+        # calculate the embedding properties for simplex parameter
+        if args.simplex_type == "delta":
+            neg_sim = []
+            with torch.no_grad():
+                for inputs, labels in train_loader:
+                    embeddings = model(inputs).detach()
+                    embeddings = F.normalize(embeddings, dim=1)
+                    similarity_matrix = torch.mm(embeddings, embeddings.T)
+
+                    target = labels.unsqueeze(0)
+                    mask = target.t() == target
+                    
+                    neg_sim.append(similarity_matrix[~mask].mean().item())
+
+            neg_sim = np.mean(neg_sim)
+            print(f"similarity of negative pairs: {neg_sim}")
+            k = 1 - 1/neg_sim
+            centroid = None
+        elif args.simplex_type == "centroid":
+            all_labels = torch.cat([labels for _, labels in train_loader])
+            k = torch.unique(all_labels).numel()
+            print(f"'k' of simplex loss: {k} (=number of classes)")
+
+            centroid = torch.zeros(args.out_dim, requires_grad=False)
+            n_instance = 0
+
+            with torch.no_grad():
+                for images, labels in train_loader:
+                    embeddings = model(images).detach()
+                    embeddings = F.normalize(embeddings, dim=1) 
+                
+                    centroid += embeddings.sum(axis=0)
+                    n_instance += embeddings.shape[0]
+
+                centroid = centroid / n_instance
+        else:
+            all_labels = torch.cat([labels for _, labels in train_loader])
+            n_labels_for_train_loader = torch.unique(all_labels).numel()
+            freezed_model = copy.deepcopy(model)
+            freezed_model.eval()
+        ####
 
     for epoch in range(num_epochs):
         model.train()
@@ -177,11 +219,40 @@ def train_model(model, optimizer, train_loader, val_loader, test_loader, lose_ty
         for inputs, labels in train_loader:
             optimizer.zero_grad()
             outputs = model(inputs)
+            ####
+            # calculate the embedding properties in batch for simplex parameter
+            if lose_type == "simplex":
+                if args.simplex_type == "delta_batch":
+                    with torch.no_grad():
+                        embeddings = freezed_model(inputs).detach()
+                        embeddings = F.normalize(embeddings, dim=1)
+                        similarity_matrix = torch.mm(embeddings, embeddings.T)
+
+                        target = labels.unsqueeze(0)
+                        mask = target.t() == target
+
+                        neg_sim = similarity_matrix[~mask].mean().item()
+
+                    print(f"similarity of negative pairs: {neg_sim}")
+                    k = 1 - 1/neg_sim
+                    centroid = None
+                elif args.simplex_type == "centroid_batch":
+                    k = n_labels_for_train_loader
+                    with torch.no_grad():
+                        embeddings = freezed_model(inputs).detach()
+                        embeddings = F.normalize(embeddings, dim=1) 
+                        centroid = embeddings.sum(axis=0) / embeddings.shape[0]
+            ####
 
             if lose_type == "simclr":
                 loss = simclr_loss_func(outputs, labels, args.simclr_t)
             elif lose_type == "simplex":
-                loss = simplex_loss_func_general(outputs, outputs, labels, k=k, p=2, lamb=args.simplex_lamb, use_centroid=args.simplex_use_centroid)
+                loss = simplex_loss_func_general(
+                    outputs, outputs, labels,
+                    k=k, p=2, lamb=args.simplex_lamb,
+                    centroid=centroid,
+                    rectify_small_neg_sim=args.simplex_restrict_negative
+                )
             loss.backward()
             optimizer.step()
             
@@ -206,6 +277,26 @@ def train_model(model, optimizer, train_loader, val_loader, test_loader, lose_ty
     
     return acc_result
 
+############
+# Evaluation
+def eval_sim_of_class_mean(net, data_loader, dim, n_class):
+    net.eval()
+
+    class_mean = torch.zeros(n_class, dim, requires_grad=False)
+    class_n = torch.zeros(n_class, 1, requires_grad=False)
+
+    with torch.no_grad():
+        for images, labels in data_loader:
+            embeddings = net(images)
+            for cnt_class in range(n_class):
+                class_mean[cnt_class] += embeddings[labels==cnt_class].sum(axis=0)
+                class_n[cnt_class] += (labels==cnt_class).sum()
+
+        class_mean = class_mean / class_n
+
+        class_mean = nn.functional.normalize(class_mean, dim=1)
+
+    print(torch.mm(class_mean, class_mean.t()))
 
 def test_nn(net, memory_data_loader, test_data_loader, top_k=200):
     net.eval()
@@ -249,7 +340,8 @@ def test_nn(net, memory_data_loader, test_data_loader, top_k=200):
 
     return total_top1 / total_num * 100
 
-
+############
+# Main
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Synthetic data experiment.")
     
@@ -284,13 +376,20 @@ if __name__ == "__main__":
     parser.add_argument("--simclr_t", type=float, default=0.5, help="Temperature parameter for SimCLR loss")
     parser.add_argument("--simplex_lamb", type=float, default=1.0, help="Lambda parameter for simplex loss.")
     parser.add_argument("--simplex_use_centroid", action="store_true", help="Using centroid for simplex loss.")
+    parser.add_argument("--simplex_type", type=str, default="centroid", help="Simplex loss type.")
+    parser.add_argument("--simplex_restrict_negative", action="store_true", help="Ensure that negative pairs move farther apart.")
 
     parser.add_argument("--lr_pretrain_simclr", type=float, default=1.0, help="Learning rate for SimCLR pre-training.")
-    parser.add_argument("--lr_simclr", type=float, default=0.1, help="Learning rate for SimCLR fine-tuning.")
+    parser.add_argument("--lr_simclr", type=float, default=0.05, help="Learning rate for SimCLR fine-tuning.")
     parser.add_argument("--lr_simplex", type=float, default=0.1, help="Learning rate for Simplex fine-tuning.")
 
     # Output
     parser.add_argument("--output_name", type=str, default="./synthetic_result.png", help="Path to save the output plot.")
+    parser.add_argument("--output_pretrain", type=str, default="./syn_result/pretrained_model.pt", help="Path to save the output plot.")
+
+    # ETC
+    print_eval_sim_of_class_mean = False
+    torch.set_printoptions(precision=2, sci_mode=False)
 
     args = parser.parse_args()
     print(get_args_table(vars(args)))
@@ -326,11 +425,19 @@ if __name__ == "__main__":
     model = SimpleNN(input_dim=args.data_dim, out_dim=args.out_dim)
     optimizer = optim.SGD(model.parameters(), lr=args.lr_pretrain_simclr, weight_decay=1e-6)
 
-    train_model(
-        model, optimizer,
-        coarse_train_loader, coarse_val_loader, coarse_test_loader,
-        "simclr", args.epoch_pretrain, args
-    )
+    if os.path.exists(args.output_pretrain):
+        model.load_state_dict(torch.load(args.output_pretrain, weights_only=False))
+    else:
+        train_model(
+            model, optimizer,
+            coarse_train_loader, coarse_val_loader, coarse_test_loader,
+            "simclr", args.epoch_pretrain, args
+        )
+        torch.save(model.state_dict(), args.output_pretrain)
+
+    if print_eval_sim_of_class_mean:
+        eval_sim_of_class_mean(model, coarse_test_loader, args.out_dim, coarse_n_class)
+        eval_sim_of_class_mean(model, test_dataset, args.out_dim, args.n_class)
 
     ##########
     # Finetuning
@@ -350,9 +457,10 @@ if __name__ == "__main__":
     acc_coarse = test_nn(model, coarse_val_loader, coarse_test_loader, top_k=200)
     print(f"Before fine-tuning: {acc_finetune:.2f}, {acc_coarse:.2f}")
     
+    pretrained_model_simclr = copy.deepcopy(model)
+    pretrained_model_simplex = copy.deepcopy(model)
 
     print("----simclr----")
-    pretrained_model_simclr = copy.deepcopy(model)
     finetune_optimizer_simclr = optim.SGD(pretrained_model_simclr.parameters(), lr=args.lr_simclr)
     simclr_result = train_model(
         pretrained_model_simclr, finetune_optimizer_simclr,
@@ -360,14 +468,23 @@ if __name__ == "__main__":
         "simclr", args.epoch_finetune, args=args
     )
 
+    if print_eval_sim_of_class_mean:
+        eval_sim_of_class_mean(pretrained_model_simclr, coarse_test_loader, args.out_dim, coarse_n_class)
+        eval_sim_of_class_mean(pretrained_model_simclr, fine_test_dataset, args.out_dim, fine_n_class)
+        eval_sim_of_class_mean(pretrained_model_simclr, test_dataset, args.out_dim, args.n_class)
+
     print("----simplex----")
-    pretrained_model_simplex = copy.deepcopy(model)
     finetune_optimizer_simplex = optim.SGD(pretrained_model_simplex.parameters(), lr=args.lr_simplex)
     simplex_result = train_model(
         pretrained_model_simplex, finetune_optimizer_simplex,
         fine_train_loader, [fine_val_loader, coarse_val_loader], [fine_test_loader, coarse_test_loader],
         "simplex", args.epoch_finetune, args=args
     )
+
+    if print_eval_sim_of_class_mean:
+        eval_sim_of_class_mean(pretrained_model_simplex, coarse_test_loader, args.out_dim, coarse_n_class)
+        eval_sim_of_class_mean(pretrained_model_simplex, fine_test_dataset, args.out_dim, fine_n_class)
+        eval_sim_of_class_mean(pretrained_model_simplex, test_dataset, args.out_dim, args.n_class)
 
     ##########
     # Plot the result
