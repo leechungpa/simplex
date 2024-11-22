@@ -175,7 +175,7 @@ def train_model(model, optimizer, train_loader, val_loader, test_loader, lose_ty
             neg_sim = []
             with torch.no_grad():
                 for inputs, labels in train_loader:
-                    embeddings = model(inputs).detach()
+                    embeddings = model(inputs)
                     embeddings = F.normalize(embeddings, dim=1)
                     similarity_matrix = torch.mm(embeddings, embeddings.T)
 
@@ -198,13 +198,14 @@ def train_model(model, optimizer, train_loader, val_loader, test_loader, lose_ty
 
             with torch.no_grad():
                 for images, labels in train_loader:
-                    embeddings = model(images).detach()
+                    embeddings = model(images)
                     embeddings = F.normalize(embeddings, dim=1) 
                 
                     centroid += embeddings.sum(axis=0)
                     n_instance += embeddings.shape[0]
 
                 centroid = centroid / n_instance
+            print(f"norm of centroid: {centroid.norm().item()}")
         else:
             all_labels = torch.cat([labels for _, labels in train_loader])
             n_labels_for_train_loader = torch.unique(all_labels).numel()
@@ -224,7 +225,7 @@ def train_model(model, optimizer, train_loader, val_loader, test_loader, lose_ty
             if lose_type == "simplex":
                 if args.simplex_type == "delta_batch":
                     with torch.no_grad():
-                        embeddings = freezed_model(inputs).detach()
+                        embeddings = freezed_model(inputs)
                         embeddings = F.normalize(embeddings, dim=1)
                         similarity_matrix = torch.mm(embeddings, embeddings.T)
 
@@ -232,16 +233,16 @@ def train_model(model, optimizer, train_loader, val_loader, test_loader, lose_ty
                         mask = target.t() == target
 
                         neg_sim = similarity_matrix[~mask].mean().item()
-
-                    print(f"similarity of negative pairs: {neg_sim}")
+                    # print(f"similarity of negative pairs: {neg_sim}")
                     k = 1 - 1/neg_sim
                     centroid = None
                 elif args.simplex_type == "centroid_batch":
                     k = n_labels_for_train_loader
                     with torch.no_grad():
-                        embeddings = freezed_model(inputs).detach()
+                        embeddings = freezed_model(inputs)
                         embeddings = F.normalize(embeddings, dim=1) 
                         centroid = embeddings.sum(axis=0) / embeddings.shape[0]
+                    # print(f"norm of centroid: {centroid.norm().item()}")
             ####
 
             if lose_type == "simclr":
@@ -368,20 +369,19 @@ if __name__ == "__main__":
     # Fine-tuning parameters
     parser.add_argument("--fine_labels", nargs="+", type=int, default=[0, 1, 2, 3], help="Labels for fine-tuning.")
     parser.add_argument("--batchsize_finetune", type=int, default=32, help="Batch size for fine-tuning.")
-    parser.add_argument("--epoch_finetune", type=int, default=30, help="Number of fine-tuning epochs.")
+    parser.add_argument("--epoch_finetune", type=int, default=100, help="Number of fine-tuning epochs.")
 
     # Hyper parameters
     parser.add_argument("--seed", type=int, default=1234, help="Seed")
 
     parser.add_argument("--simclr_t", type=float, default=0.5, help="Temperature parameter for SimCLR loss")
-    parser.add_argument("--simplex_lamb", type=float, default=1.0, help="Lambda parameter for simplex loss.")
-    parser.add_argument("--simplex_use_centroid", action="store_true", help="Using centroid for simplex loss.")
-    parser.add_argument("--simplex_type", type=str, default="centroid", help="Simplex loss type.")
+    parser.add_argument("--simplex_lamb", type=float, default=10.0, help="Lambda parameter for simplex loss.")
+    parser.add_argument("--simplex_type", type=str, default="centroid_batch", help="Simplex loss type.")
     parser.add_argument("--simplex_restrict_negative", action="store_true", help="Ensure that negative pairs move farther apart.")
 
     parser.add_argument("--lr_pretrain_simclr", type=float, default=1.0, help="Learning rate for SimCLR pre-training.")
-    parser.add_argument("--lr_simclr", type=float, default=0.05, help="Learning rate for SimCLR fine-tuning.")
-    parser.add_argument("--lr_simplex", type=float, default=0.1, help="Learning rate for Simplex fine-tuning.")
+    parser.add_argument("--lr_simclr", type=float, default=0.03, help="Learning rate for SimCLR fine-tuning.")
+    parser.add_argument("--lr_simplex", type=float, default=0.03, help="Learning rate for Simplex fine-tuning.")
 
     # Output
     parser.add_argument("--output_name", type=str, default="./synthetic_result.png", help="Path to save the output plot.")
