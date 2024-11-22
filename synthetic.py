@@ -190,7 +190,7 @@ def train_model(model, optimizer, train_loader, val_loader, test_loader, lose_ty
             centroid = None
         elif args.simplex_type == "centroid":
             all_labels = torch.cat([labels for _, labels in train_loader])
-            k = torch.unique(all_labels).numel()
+            k = torch.unique(all_labels).numel()   # 고유한 class 개수
             print(f"'k' of simplex loss: {k} (=number of classes)")
 
             centroid = torch.zeros(args.out_dim, requires_grad=False)
@@ -206,8 +206,11 @@ def train_model(model, optimizer, train_loader, val_loader, test_loader, lose_ty
 
                 centroid = centroid / n_instance
         else:
+            # 데이터셋에 포함된 class의 수
             all_labels = torch.cat([labels for _, labels in train_loader])
             n_labels_for_train_loader = torch.unique(all_labels).numel()
+
+            
             freezed_model = copy.deepcopy(model)
             freezed_model.eval()
         ####
@@ -287,7 +290,7 @@ def eval_sim_of_class_mean(net, data_loader, dim, n_class):
 
     with torch.no_grad():
         for images, labels in data_loader:
-            embeddings = net(images)
+            embeddings = net(images)   # (batch_size, dim)
             for cnt_class in range(n_class):
                 class_mean[cnt_class] += embeddings[labels==cnt_class].sum(axis=0)
                 class_n[cnt_class] += (labels==cnt_class).sum()
@@ -296,6 +299,7 @@ def eval_sim_of_class_mean(net, data_loader, dim, n_class):
 
         class_mean = nn.functional.normalize(class_mean, dim=1)
 
+    # class간 cosine similarity
     print(torch.mm(class_mean, class_mean.t()))
 
 def test_nn(net, memory_data_loader, test_data_loader, top_k=200):
