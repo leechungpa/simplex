@@ -54,6 +54,7 @@ def simplex_loss_func(
     k: int, p: int, lamb: float,
     rectify_large_neg_sim: bool = False, rectify_small_neg_sim: bool = False,
     unimodal: bool = True,
+    disable_positive_term: bool = False,
 ) -> torch.Tensor:
     """Computes Simplex loss given batch of projected features z1 from view 1 and
     projected features z2 from view 2.
@@ -73,12 +74,14 @@ def simplex_loss_func(
     Returns:
         torch.Tensor: Simplex loss.
     """
-    gathered_target = gather(target)
+    # gathered_target = gather(target)
 
-    target = target.unsqueeze(0)
-    gathered_target = gathered_target.unsqueeze(0)
+    # target = target.unsqueeze(0)
+    # gathered_target = gathered_target.unsqueeze(0)
 
-    pos_mask = target.t() == gathered_target
+    # pos_mask = target.t() == gathered_target
+
+    pos_mask = torch.eye(z1.shape[0], dtype=torch.bool)
 
     neg_mask = ~ pos_mask
 
@@ -89,7 +92,9 @@ def simplex_loss_func(
     gathered_z2 = gather(z2)
     similiarity = torch.einsum("id, jd -> ij", z1, gathered_z2)
 
-    similiarity[pos_mask] = similiarity[pos_mask] - 1
+    if not disable_positive_term:
+        similiarity[pos_mask] = similiarity[pos_mask] - 1
+
     similiarity[neg_mask] = similiarity[neg_mask] + 1/(k-1)
 
     if rectify_large_neg_sim:
@@ -101,7 +106,10 @@ def simplex_loss_func(
 
     similiarity = similiarity.abs().pow(p)
 
-    loss = similiarity[pos_mask].mean() + similiarity[neg_mask].mean() * lamb
+    loss = 0.0
+    if not disable_positive_term:
+        loss += similiarity[pos_mask].mean()
+    loss += similiarity[neg_mask].mean() * lamb
 
     ############
     # To-Do: Remove the legacy.
