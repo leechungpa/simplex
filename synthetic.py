@@ -165,6 +165,7 @@ class SimpleNN(nn.Module):
 ############
 # Trainer
 def train_model(model, optimizer, train_loader, val_loader, test_loader, lose_type, num_epochs, args):
+    # args = copy.deepcopy(args)
     acc_result = []
 
     if lose_type == "simplex":
@@ -228,6 +229,7 @@ def train_model(model, optimizer, train_loader, val_loader, test_loader, lose_ty
             if lose_type == "simplex":
                 if args.simplex_type == "delta_batch":
                     with torch.no_grad():
+
                         embeddings = freezed_model(inputs)
                         embeddings = F.normalize(embeddings, dim=1)
                         similarity_matrix = torch.mm(embeddings, embeddings.T)
@@ -250,6 +252,39 @@ def train_model(model, optimizer, train_loader, val_loader, test_loader, lose_ty
 
             if lose_type == "simclr":
                 loss = simclr_loss_func(outputs, labels, args.simclr_t)
+
+                if args.add_simplex_loss:
+                    
+                    with torch.no_grad():
+                        freezed_model = copy.deepcopy(model)
+                        freezed_model.eval()
+                        embeddings = freezed_model(inputs)
+                        embeddings = F.normalize(embeddings, dim=1)
+                        similarity_matrix = torch.mm(embeddings, embeddings.T)
+
+                        target = labels.unsqueeze(0)
+                        mask = target.t() == target
+
+                        neg_sim = similarity_matrix[~mask].mean().item()
+                    k = 1 - 1/neg_sim
+                    centroid = None
+                    # all_labels = torch.cat([labels for _, labels in train_loader])
+                    # k = torch.unique(all_labels).numel()
+                    # with torch.no_grad():
+
+                    #     embeddings = freezed_model(inputs)
+                    #     embeddings = F.normalize(embeddings, dim=1) 
+                    #     centroid = embeddings.sum(axis=0) / embeddings.shape[0]
+                    
+                    simplex_loss = simplex_loss_func_general(
+                        outputs, outputs, labels,
+                        k=k, p=2, lamb=args.add_simplex_loss_lambda,
+                        centroid=centroid,
+                        rectify_small_neg_sim=args.simplex_restrict_negative,
+                        disable_positive_term=True
+                    )
+                    loss += simplex_loss * args.add_simplex_loss_weight
+                
             elif lose_type == "simplex":
                 loss = simplex_loss_func_general(
                     outputs, outputs, labels,
@@ -384,9 +419,14 @@ if __name__ == "__main__":
     parser.add_argument("--simplex_restrict_negative", action="store_true", help="Ensure that negative pairs move farther apart.")
 
     parser.add_argument("--lr_pretrain_simclr", type=float, default=1.0, help="Learning rate for SimCLR pre-training.")
-    parser.add_argument("--lr_simclr", type=float, default=0.03, help="Learning rate for SimCLR fine-tuning.")
+    parser.add_argument("--lr_simclr", type=float, default=0.1, help="Learning rate for SimCLR fine-tuning.")
     parser.add_argument("--lr_simplex", type=float, default=0.03, help="Learning rate for Simplex fine-tuning.")
+    parser.add_argument("--lr_add_simplex_loss", type=float, default=0.1, help="Learning rate for SimCLR with regularization term fine-tuning.")
 
+    parser.add_argument("--add_simplex_loss", type=bool, default=False, help="Whether to add a regularization term for simplex loss to SimCLR.")
+    parser.add_argument("--add_simplex_loss_lambda", type=float, default=20.0, help="Lambda parameter for adding simplex loss.")
+    parser.add_argument("--add_simplex_loss_weight", type=float, default=1.0, help="Weight for simplex loss when combined with SimCLR.")
+    
     # Output
     parser.add_argument("--output_name", type=str, default="./synthetic_result.png", help="Path to save the output plot.")
     parser.add_argument("--output_pretrain", type=str, default="./syn_result/pretrained_model.pt", help="Path to save the output plot.")
@@ -463,6 +503,7 @@ if __name__ == "__main__":
     
     pretrained_model_simclr = copy.deepcopy(model)
     pretrained_model_simplex = copy.deepcopy(model)
+    pretrained_model_simclr_simplex = copy.deepcopy(model)
 
     print("----simclr----")
     finetune_optimizer_simclr = optim.SGD(pretrained_model_simclr.parameters(), lr=args.lr_simclr)
@@ -490,23 +531,56 @@ if __name__ == "__main__":
         eval_sim_of_class_mean(pretrained_model_simplex, fine_test_dataset, args.out_dim, fine_n_class)
         eval_sim_of_class_mean(pretrained_model_simplex, test_dataset, args.out_dim, args.n_class)
 
+    print("----simclr with regularization term----")
+    finetune_optimizer_simclr_simplex = optim.SGD(pretrained_model_simclr_simplex.parameters(), lr=args.lr_add_simplex_loss)
+    simclr_simplex_result = train_model(
+        pretrained_model_simclr_simplex, finetune_optimizer_simclr_simplex,
+        fine_train_loader, [fine_val_loader, coarse_val_loader], [fine_test_loader, coarse_test_loader],
+        "simclr", args.epoch_finetune, args=argparse.Namespace(**{**vars(args), "add_simplex_loss": True})
+    )
+
+
     ##########
     # Plot the result
-    plt.figure(figsize=(10, 6))
-    simclr_x, simclr_y = zip(*simclr_result)
-    simplex_x, simplex_y = zip(*simplex_result)
+    plt.figure(figsize=(8, 6))   # (10, 6)
+    # simclr_x, simclr_y = zip(*simclr_result)
+    # simplex_x, simplex_y = zip(*simplex_result)
+    # simclr_simplex_x, simclr_simplex_y = zip(*simclr_simplex_result)
+
+    # plt.scatter(acc_finetune, acc_coarse, label='Pre-trained base model', color='black', s=100)
+
+    # plt.scatter(simclr_x, simclr_y, label='Fine-tuning using SimCLR', color='blue')
+    # plt.scatter(simplex_x, simplex_y, label='Fine-tuning using Simplex', color='red')
+    # plt.scatter(simclr_simplex_x, simclr_simplex_y, label='Fine-tuning using SimCLR + Simplex', color='green')
+    
+    # for i, (x, y) in enumerate(zip(simclr_x, simclr_y), start=1):
+    #     plt.annotate(str(i), (x, y), textcoords="offset points", xytext=(5, 5), ha='center', color='blue')
+
+    # for i, (x, y) in enumerate(zip(simplex_x, simplex_y), start=1):
+    #     plt.annotate(str(i), (x, y), textcoords="offset points", xytext=(5, 5), ha='center', color='red')
+
+    # for i, (x, y) in enumerate(zip(simclr_simplex_x, simclr_simplex_y), start=1):
+    #     plt.annotate(str(i), (x, y), textcoords="offset points", xytext=(5, 5), ha='center', color='green')
+
+
+    # plt.xlabel('Acc@1 (fine-tune task: subset of fine-grained classes)')
+    # plt.ylabel('Acc@1 (pre-train task: coarse-grained classes)')
+    # plt.legend(loc='lower left')
+    # plt.grid()
+
+
+    last_simclr_x, last_simclr_y = simclr_result[-1]
+    last_simplex_x, last_simplex_y = simplex_result[-1]
+    last_simclr_simplex_x, last_simclr_simplex_y = simclr_simplex_result[-1]
 
     plt.scatter(acc_finetune, acc_coarse, label='Pre-trained base model', color='black', s=100)
+    plt.scatter(last_simclr_x, last_simclr_y, label='Fine-tuning using SimCLR', color='blue', s=100)
+    plt.scatter(last_simplex_x, last_simplex_y, label='Fine-tuning using Simplex', color='red', s=100)
+    plt.scatter(last_simclr_simplex_x, last_simclr_simplex_y, label='Fine-tuning using SimCLR + Simplex', color='green', s=100)
 
-    plt.scatter(simclr_x, simclr_y, label='Fine-tuning using SimCLR', color='blue')
-    plt.scatter(simplex_x, simplex_y, label='Fine-tuning using Simplex', color='red')
-    
-    for i, (x, y) in enumerate(zip(simclr_x, simclr_y), start=1):
-        plt.annotate(str(i), (x, y), textcoords="offset points", xytext=(5, 5), ha='center', color='blue')
-
-    for i, (x, y) in enumerate(zip(simplex_x, simplex_y), start=1):
-        plt.annotate(str(i), (x, y), textcoords="offset points", xytext=(5, 5), ha='center', color='red')
-
+    plt.annotate('SimCLR', (last_simclr_x, last_simclr_y), textcoords="offset points", xytext=(5, 5), ha='center', color='blue')
+    plt.annotate('Simplex', (last_simplex_x, last_simplex_y), textcoords="offset points", xytext=(5, 5), ha='center', color='red')
+    plt.annotate('SimCLR + Simplex', (last_simclr_simplex_x, last_simclr_simplex_y), textcoords="offset points", xytext=(5, 5), ha='center', color='green')
 
     plt.xlabel('Acc@1 (fine-tune task: subset of fine-grained classes)')
     plt.ylabel('Acc@1 (pre-train task: coarse-grained classes)')
