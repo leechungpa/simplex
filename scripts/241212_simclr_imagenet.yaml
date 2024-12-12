@@ -1,7 +1,7 @@
 defaults:
   - _self_
-  - augmentations: # --- your augmentation config file ---
-  - wandb: # --- your WandB config file ---
+  - augmentations: imagenet_241212.yaml
+  - wandb: _private.yaml
   - override hydra/hydra_logging: disabled
   - override hydra/job_logging: disabled
 
@@ -12,67 +12,70 @@ hydra:
 
 ###############
 # job name
-name: # --- job name ---
+name: ""
 name_kwargs:
   add_method: True
   add_batch_size: True
   # For simplex loss
   add_k: False
   add_p: False
-  add_lamb: False
+  add_lamb: True 
   # For simlcr loss
-  add_temperature: False
-
-seed: 1234
+  add_temperature: True 
 
 ###############
 # loss
-method: # Select the loss function: "simplex", "simclr", "barlow_twins"
+method: "simclr" # "simplex", "simclr", "barlow_twins"
 method_kwargs:
   proj_hidden_dim: 2048
   proj_output_dim: 128
   # For simplex
   p: 2
-  k: 130000
-  lamb: 1.0
-  unimodal: True
+  k: 50000
+  lamb: 3
+  unimodal: False
   rectify_large_neg_sim: False
   rectify_small_neg_sim: False
   # For simclr
-  temperature: 0.1
+  temperature: 0.5
   # For barlow_twins
   scale_loss: 0.1
 
 ###############
 # add additional simplex loss
 add_simplex_loss:
-  enabled: True
-  weight: 1.0
+  enabled: False
+  weight: 1
   p: 2
-  k: 130000
+  k: 50000
+  lamb: 20
   rectify_small_neg_sim: False
+  disable_positive_term: True
 
 ###############
 # model and optimizer
 backbone:
-  name: "resnet50"
+  name: "resnet50" # backbone architecture 
 optimizer:
-  name:  # Select the optimizer: "sgd", "lars", "adam", "adamw"
-  batch_size: 64 # adjust based on your experiment (32, 64, 128, 256 512)
-  lr: 0.075
-  lr_method: "square_root" # "linear" "square_root"
+  name: "sgd" # "sgd", "lars", "adam", "adamw"
+  batch_size: 128 # 32, 64, 128, 256, 512
+  lr: 1.4   # Reference: Bridging Mini-Batch and Asymptotic Analysis in Contrastive Learning: From InfoNCE to Kernel-Based Losses
+  lr_method: "linear"   # "square_root", "linear"
   weight_decay: 1e-6
   classifier_lr: 0.1
 scheduler:
+  # Linear warmup for the first 10 epochs, and decay the learning rate with the cosine decay schedule without restarts.
+  # Reference: A Simple Framework for Contrastive Learning of Visual Representations
   name: "warmup_cosine"
-max_epochs: 1000 # adjust based on your experiment (200 400 1000)
-
+  warmup_epochs: 10
+  # min_lr: 0.1
+max_epochs: 200
 ###############
 # data
 data:
   dataset: imagenet100
-  train_path: # --- path to your training data ---
-  val_path: # --- path to your validation data ---
+  train_path: "/data/files/imagenet-100"
+  val_path: "/data/files/imagenet-100"
   format: "image_folder"
   num_workers: 2
 
@@ -87,7 +90,7 @@ evaluate_batch:
 # save and resume
 checkpoint:
   enabled: True
-  dir: # --- directory to save checkpoints ---
+  dir: "trained_models" 
   frequency: 50
 auto_resume:
   enabled: False

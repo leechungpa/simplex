@@ -1,7 +1,7 @@
 defaults:
   - _self_
-  - augmentations: # --- your augmentation config file ---
-  - wandb: # --- your WandB config file ---
+  - augmentations: cifar_241212.yaml
+  - wandb: _private.yaml
   - override hydra/hydra_logging: disabled
   - override hydra/job_logging: disabled
 
@@ -12,67 +12,67 @@ hydra:
 
 ###############
 # job name
-name: # --- job name ---
+name: ""
 name_kwargs:
   add_method: True
   add_batch_size: True
   # For simplex loss
   add_k: False
   add_p: False
-  add_lamb: False
+  add_lamb: True 
   # For simlcr loss
-  add_temperature: False
-
-seed: 1234
+  add_temperature: True
 
 ###############
 # loss
-method: # Select the loss function: "simplex", "simclr", "barlow_twins"
+method: "simclr" # "simplex", "simclr", "barlow_twins"
 method_kwargs:
-  proj_hidden_dim: 2048
+  proj_hidden_dim: 512
   proj_output_dim: 128
   # For simplex
   p: 2
-  k: 130000
-  lamb: 1.0
-  unimodal: True
+  k: 50000
+  lamb: 7
+  unimodal: False
   rectify_large_neg_sim: False
   rectify_small_neg_sim: False
   # For simclr
-  temperature: 0.1
+  temperature: 0.5
   # For barlow_twins
   scale_loss: 0.1
 
 ###############
 # add additional simplex loss
 add_simplex_loss:
-  enabled: True
-  weight: 1.0
+  enabled: False
+  weight: 1
   p: 2
-  k: 130000
+  k: 50000
   rectify_small_neg_sim: False
+  disable_positive_term: True
 
 ###############
 # model and optimizer
 backbone:
-  name: "resnet50"
+  name: "resnet18" # "resnet18", "resnet50"
 optimizer:
-  name:  # Select the optimizer: "sgd", "lars", "adam", "adamw"
-  batch_size: 64 # adjust based on your experiment (32, 64, 128, 256 512)
-  lr: 0.075
-  lr_method: "square_root" # "linear" "square_root"
-  weight_decay: 1e-6
+  name: "sgd" # "sgd", "lars", "adam", "adamw"
+  batch_size: 256 # 32, 64, 128, 256, 512
+  lr: 0.125   # Reference: i-Mix: A Domain-Agnostic Strategy for Contrastive Representation Learning
+  lr_method: "linear"   # "square_root", "linear"
+  weight_decay: 1e-4
   classifier_lr: 0.1
 scheduler:
   name: "warmup_cosine"
-max_epochs: 1000 # adjust based on your experiment (200 400 1000)
+  warmup_epochs: 10
+max_epochs: 500 # 200, 400, 1000
 
 ###############
 # data
 data:
-  dataset: imagenet100
-  train_path: # --- path to your training data ---
-  val_path: # --- path to your validation data ---
+  dataset: cifar100   # cifar10, cifar100
+  train_path: "/data/files/torchvision"
+  val_path: "/data/files/torchvision"
   format: "image_folder"
   num_workers: 2
 
@@ -87,7 +87,7 @@ evaluate_batch:
 # save and resume
 checkpoint:
   enabled: True
-  dir: # --- directory to save checkpoints ---
+  dir: "trained_models" 
   frequency: 50
 auto_resume:
   enabled: False
