@@ -9,6 +9,7 @@ def simplex_loss_func_general(
     k: int, p: int, lamb: float,
     centroid: torch.Tensor|None = None,
     rectify_large_neg_sim: bool = False, rectify_small_neg_sim: bool = False,
+    disable_positive_term: bool = False,
 ) -> torch.Tensor:
     gathered_target = gather(target)
 
@@ -32,8 +33,11 @@ def simplex_loss_func_general(
     gathered_z2 = gather(z2)
     similiarity = torch.einsum("id, jd -> ij", z1, gathered_z2)
 
-    similiarity[pos_mask] = similiarity[pos_mask] - 1 * scale
+    if not disable_positive_term:
+        similiarity[pos_mask] = similiarity[pos_mask] - 1 * scale
+    # similiarity[pos_mask] = similiarity[pos_mask] - 0.743632495403289
     similiarity[neg_mask] = similiarity[neg_mask] + 1/(k-1) * scale
+    # similiarity[neg_mask] = similiarity[neg_mask] - 0.0233505647629499
 
     if rectify_large_neg_sim:
         # adjust to 0 if the similarity is greater than -1/(k-1)
@@ -44,7 +48,10 @@ def simplex_loss_func_general(
 
     similiarity = similiarity.abs().pow(p)
 
-    loss = similiarity[pos_mask].mean() + similiarity[neg_mask].mean() * lamb
+    loss = 0.0
+    if not disable_positive_term:
+        loss += similiarity[pos_mask].mean()
+    loss += similiarity[neg_mask].mean() * lamb
     return loss
 
 
@@ -94,8 +101,10 @@ def simplex_loss_func(
 
     if not disable_positive_term:
         similiarity[pos_mask] = similiarity[pos_mask] - 1
+        # similiarity[pos_mask] = similiarity[pos_mask] - 0.743632495403289
 
     similiarity[neg_mask] = similiarity[neg_mask] + 1/(k-1)
+    # similiarity[neg_mask] = similiarity[neg_mask] - 0.0233505647629499
 
     if rectify_large_neg_sim:
         # adjust to 0 if the similarity is greater than -1/(k-1)
