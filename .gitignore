@@ -171,3 +171,12 @@ scripts/_*
 scripts/wandb/_*
 synthetic_result.png
 syn_result/
+
+measure_time.py
+sta.ipynb
+synthetic-comment.py
+synthetic-fast.py
+synthetic_visualization (1).ipynb
+synthetic_visualization.ipynb
+test.ipynb
+test2.ipynb
