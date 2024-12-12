@@ -556,7 +556,7 @@ class BaseMethod(pl.LightningModule):
             simplex_loss = simplex_loss_func(
                 z1, z2,
                 target=None, 
-                k=self.add_simplex_loss.k, p=self.add_simplex_loss.p, lamb=self.add_simplex_loss.lamb,
+                k=self.add_simplex_loss.k, p=self.add_simplex_loss.p, lamb=1,
                 rectify_large_neg_sim=self.add_simplex_loss.rectify_large_neg_sim,
                 rectify_small_neg_sim=self.add_simplex_loss.rectify_small_neg_sim,
                 unimodal=self.add_simplex_loss.unimodal,
