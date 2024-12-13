@@ -28,7 +28,7 @@ import torch.nn.functional as F
 from torch.optim.lr_scheduler import ExponentialLR, MultiStepLR, ReduceLROnPlateau
 
 from solo.utils.lars import LARS
-from solo.utils.lr_scheduler import LinearWarmupCosineAnnealingLR, LinearLR
+from solo.utils.lr_scheduler import LinearWarmupCosineAnnealingLR, LinearLR, StepDecayLR
 from solo.utils.metrics import accuracy_at_k, weighted_mean
 from solo.utils.misc import (
     omegaconf_select,
@@ -280,6 +280,8 @@ class LinearModel(pl.LightningModule):
             scheduler = ExponentialLR(optimizer, self.weight_decay)
         elif self.scheduler == "linear":
             scheduler = LinearLR(optimizer, self.max_epochs)
+        elif self.scheduler == "imix":
+            scheduler = StepDecayLR(optimizer, milestones=[80, 90, 95], gamma=0.2)
         else:
             raise ValueError(
                 f"{self.scheduler} not in (warmup_cosine, cosine, reduce, step, exponential)"
