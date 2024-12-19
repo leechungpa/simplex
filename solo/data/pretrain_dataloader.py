@@ -26,7 +26,7 @@ import torch
 import torchvision
 from PIL import Image, ImageFilter, ImageOps
 from timm.data.constants import IMAGENET_DEFAULT_MEAN, IMAGENET_DEFAULT_STD
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, ConcatDataset
 from torch.utils.data.dataset import Dataset
 from torchvision import transforms
 from torchvision.datasets import STL10, ImageFolder
@@ -328,9 +328,11 @@ def prepare_datasets(
         train_dataset = dataset_with_index(DatasetClass)(
             train_data_path,
             train=True,
+            # train = False,
             download=download,
             transform=transform,
         )
+        # print(len(train_dataset))
 
     elif dataset == "stl10":
         train_dataset = dataset_with_index(STL10)(
@@ -345,7 +347,43 @@ def prepare_datasets(
             assert _h5_available
             train_dataset = dataset_with_index(H5Dataset)(dataset, train_data_path, transform)
         else:
-            train_dataset = dataset_with_index(ImageFolder)(train_data_path, transform)
+            if dataset == "imagenet100":
+                # validation 기준으로 class_to_idx 맞추기 때문에 validation dataset 불러옴
+                val_data_path = "/data/files/imagenet-100/val.X"
+                val_dataset = ImageFolder(val_data_path)
+                val_classes = val_dataset.classes
+                class_to_idx = {cls_name: idx for idx, cls_name in enumerate(val_classes)}
+
+                # train.X1, train.X2, train.X3, train.X4 모두 합침
+                train_folders = [
+                    os.path.join(train_data_path, folder)
+                    for folder in os.listdir(train_data_path)
+                    if folder.startswith("train.X")
+                ]
+                train_datasets = [dataset_with_index(ImageFolder)(folder, transform) for folder in train_folders]
+
+                for dataset in train_datasets:
+                    dataset.class_to_idx = class_to_idx
+                    dataset.samples = [
+                        (path, class_to_idx[dataset.classes[label]])
+                        for path, label in dataset.samples
+                    ]
+                    dataset.targets = [
+                        class_to_idx[dataset.classes[label]]
+                        for label in dataset.targets
+                    ]
+
+                train_dataset = ConcatDataset(train_datasets)
+                
+                # train_classes = train_datasets[0].classes
+                # train_class_to_idx = train_dataset.class_to_idx
+                # print("pretrain_dataloader.py")
+                # for i, dataset in enumerate(train_datasets):
+                #     print(f"Dataset {i} class_to_idx:")
+                #     print(dataset.class_to_idx)
+
+            else:
+                train_dataset = dataset_with_index(ImageFolder)(train_data_path, transform)
 
     elif dataset == "custom":
         if no_labels:
@@ -394,8 +432,11 @@ def prepare_dataloader(
         train_dataset,
         batch_size=batch_size,
         shuffle=True,
+        # shuffle=False,
         num_workers=num_workers,
         pin_memory=True,
         drop_last=True,
     )
+    print(f"Train dataset size: {len(train_dataset)}")
+    print(f"Batch size: {train_loader.batch_size}")
     return train_loader
