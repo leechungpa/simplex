@@ -235,6 +235,8 @@ def main(cfg: DictConfig):
             "strategy": DDPStrategy(find_unused_parameters=False)
             if cfg.strategy == "ddp"
             else cfg.strategy,
+
+            # "accumulate_grad_batches": 391,
         }
     )
     trainer = Trainer(**trainer_kwargs)
