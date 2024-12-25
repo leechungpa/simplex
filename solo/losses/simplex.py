@@ -58,8 +58,8 @@ def simplex_loss_func_general(
 def simplex_loss_func(
     z1: torch.Tensor, z2: torch.Tensor,
     target: torch.Tensor,
-    delta: float = None, k: int = None,
     p: int, lamb: float,
+    delta: float = None, k: int = None,
     rectify_large_neg_sim: bool = False, rectify_small_neg_sim: bool = False,
     unimodal: bool = True,
     disable_positive_term: bool = False,
