@@ -324,7 +324,7 @@ class BaseMethod(pl.LightningModule):
         cfg.add_simplex_loss.rectify_small_neg_sim = omegaconf_select(cfg, "add_simplex_loss.rectify_small_neg_sim", False)
         cfg.add_simplex_loss.unimodal = omegaconf_select(cfg, "add_simplex_loss.unimodal", False)
         cfg.add_simplex_loss.disable_positive_term = omegaconf_select(cfg, "add_simplex_loss.disable_positive_term", False)
-
+        cfg.add_simplex_loss.delta = omegaconf_select(cfg, "add_simplex_loss.delta", None)
         # default empty parameters for our research
         cfg.evaluate_batch = omegaconf_select(cfg, "evaluate_batch", {})
         cfg.evaluate_batch.enabled = omegaconf_select(cfg, "evaluate_batch.enabled", False)
@@ -556,7 +556,9 @@ class BaseMethod(pl.LightningModule):
             simplex_loss = simplex_loss_func(
                 z1, z2,
                 target=None, 
-                k=self.add_simplex_loss.k, p=self.add_simplex_loss.p, lamb=1,
+                k=self.add_simplex_loss.k,
+                p=self.add_simplex_loss.p, lamb=1,
+                # delta=self.add_simplex_loss.delta,
                 rectify_large_neg_sim=self.add_simplex_loss.rectify_large_neg_sim,
                 rectify_small_neg_sim=self.add_simplex_loss.rectify_small_neg_sim,
                 unimodal=self.add_simplex_loss.unimodal,
