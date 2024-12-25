@@ -52,6 +52,7 @@ class BarlowTwins(BaseMethod):
         # projector
         self.projector = nn.Sequential(
             nn.Linear(self.features_dim, proj_hidden_dim),
+            nn.BatchNorm1d(proj_hidden_dim),
             nn.ReLU(),
             nn.Linear(proj_hidden_dim, proj_output_dim),
         )
