@@ -25,7 +25,7 @@ import torchvision
 from timm.data import create_transform
 from timm.data.constants import IMAGENET_DEFAULT_MEAN, IMAGENET_DEFAULT_STD
 from torch import nn
-from torch.utils.data import DataLoader, Dataset, ConcatDataset
+from torch.utils.data import DataLoader, Dataset
 from torchvision import transforms
 from torchvision.datasets import STL10, ImageFolder
 
@@ -229,49 +229,8 @@ def prepare_datasets(
             train_dataset = H5Dataset(dataset, train_data_path, T_train)
             val_dataset = H5Dataset(dataset, val_data_path, T_val)
         else:
-            if dataset == "imagenet100":
-                # train.X1, train.X2, train.X3, train.X4 모두 합침
-                train_folders = [
-                    os.path.join(train_data_path, folder)
-                    for folder in os.listdir(train_data_path)
-                    if folder.startswith("train.X")
-                ]
-                train_datasets = [ImageFolder(folder, T_train) for folder in train_folders]
-                train_dataset = ConcatDataset(train_datasets)
-
-                val_dataset = ImageFolder(val_data_path, T_val)
-                val_classes = val_dataset.classes
-                class_to_idx = {cls_name: idx for idx, cls_name in enumerate(val_classes)}
-                print("Validation:", val_dataset.class_to_idx)
-                for dataset in train_dataset.datasets: 
-                    # class_to_idx 업데이트
-                    dataset.class_to_idx = class_to_idx
-
-                    # validation에 없는 클래스 처리
-                    dataset.samples = [
-                        (path, class_to_idx.get(dataset.classes[label], -1))
-                        for path, label in dataset.samples
-                        if dataset.classes[label] in class_to_idx  
-                    ]
-                    dataset.targets = [
-                        class_to_idx.get(dataset.classes[label], -1)
-                        for label in dataset.targets
-                        if dataset.classes[label] in class_to_idx  
-                    ]
-
-                    missing_classes = set(dataset.classes) - set(val_classes)
-                    if missing_classes:
-                        print(f"Warning: Training dataset contains classes not in Validation dataset: {missing_classes}")
-
-                # print("classification_dataloader.py")
-                # for i, dataset in enumerate(train_datasets):
-                    # print(f"Dataset {i} class_to_idx:")
-                    # print(dataset.class_to_idx)
-            else:
-                train_dataset = ImageFolder(train_data_path, T_train)
-                val_dataset = ImageFolder(val_data_path, T_val)
-
-
+            train_dataset = ImageFolder(train_data_path, T_train)
+            val_dataset = ImageFolder(val_data_path, T_val)
 
     if data_fraction > 0:
         assert data_fraction < 1, "Only use data_fraction for values smaller than 1."
