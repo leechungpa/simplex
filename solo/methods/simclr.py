@@ -24,7 +24,7 @@ import torch
 import torch.nn as nn
 from solo.losses.simclr import simclr_loss_func
 from solo.methods.base import BaseMethod
-from solo.utils.eval_batch import evaluate_batch
+# from solo.utils.eval_batch import evaluate_batch
 
 class BatchNorm1dNoBias(nn.BatchNorm1d):
     def __init__(self, *args, **kwargs):

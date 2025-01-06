@@ -25,7 +25,7 @@ import torch.nn as nn
 from solo.losses.barlow import barlow_loss_func
 from solo.methods.base import BaseMethod
 from solo.utils.misc import omegaconf_select
-from solo.utils.eval_batch import evaluate_batch
+# from solo.utils.eval_batch import evaluate_batch
 
 
 # @evaluate_batch

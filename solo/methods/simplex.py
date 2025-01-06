@@ -25,7 +25,7 @@ import torch.nn as nn
 from solo.losses.simplex import simplex_loss_func
 from solo.methods.base import BaseMethod
 from solo.utils.misc import omegaconf_select
-from solo.utils.eval_batch import evaluate_batch
+# from solo.utils.eval_batch import evaluate_batch
 
 # @evaluate_batch
 class Simplex(BaseMethod):
@@ -53,7 +53,7 @@ class Simplex(BaseMethod):
         self.rectify_large_neg_sim: bool = cfg.method_kwargs.rectify_large_neg_sim
         self.rectify_small_neg_sim: bool = cfg.method_kwargs.rectify_small_neg_sim
 
-        self.unimodal: bool = cfg.method_kwargs.unimodal
+        # self.unimodal: bool = cfg.method_kwargs.unimodal
         self.supervised_simplex: bool = cfg.method_kwargs.supervised_simplex
 
 
@@ -104,7 +104,7 @@ class Simplex(BaseMethod):
         cfg.method_kwargs.rectify_large_neg_sim = omegaconf_select(cfg, "method_kwargs.rectify_large_neg_sim", False)
         cfg.method_kwargs.rectify_small_neg_sim = omegaconf_select(cfg, "method_kwargs.rectify_small_neg_sim", False)
 
-        cfg.method_kwargs.unimodal = omegaconf_select(cfg, "method_kwargs.unimodal", True)
+        # cfg.method_kwargs.unimodal = omegaconf_select(cfg, "method_kwargs.unimodal", True)
         cfg.method_kwargs.supervised_simplex = omegaconf_select(cfg, "method_kwargs.supervised_simplex", False)
 
         return cfg
@@ -161,7 +161,7 @@ class Simplex(BaseMethod):
             z1, z2, target=target,
             k=self.parm_k, p=self.parm_p, lamb=self.parm_lamb,
             rectify_large_neg_sim=self.rectify_large_neg_sim, rectify_small_neg_sim=self.rectify_small_neg_sim,
-            unimodal=self.unimodal
+            # unimodal=self.unimodal
         )
 
         self.log("train_loss", simplex_loss, on_epoch=True, sync_dist=True)
