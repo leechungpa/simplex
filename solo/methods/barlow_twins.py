@@ -28,7 +28,7 @@ from solo.utils.misc import omegaconf_select
 from solo.utils.eval_batch import evaluate_batch
 
 
-@evaluate_batch
+# @evaluate_batch
 class BarlowTwins(BaseMethod):
     def __init__(self, cfg: omegaconf.DictConfig):
         """Implements Barlow Twins (https://arxiv.org/abs/2103.03230)
@@ -51,10 +51,18 @@ class BarlowTwins(BaseMethod):
 
         # projector
         self.projector = nn.Sequential(
+            # nn.Linear(self.features_dim, proj_hidden_dim),
+            # nn.BatchNorm1d(proj_hidden_dim),
+            # nn.ReLU(),
+            # nn.Linear(proj_hidden_dim, proj_output_dim),
             nn.Linear(self.features_dim, proj_hidden_dim),
             nn.BatchNorm1d(proj_hidden_dim),
             nn.ReLU(),
+            nn.Linear(proj_hidden_dim, proj_hidden_dim),
+            nn.BatchNorm1d(proj_hidden_dim),
+            nn.ReLU(),
             nn.Linear(proj_hidden_dim, proj_output_dim),
+
         )
 
     @staticmethod

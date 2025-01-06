@@ -27,7 +27,7 @@ from solo.methods.base import BaseMethod
 from solo.utils.misc import omegaconf_select
 from solo.utils.eval_batch import evaluate_batch
 
-@evaluate_batch
+# @evaluate_batch
 class Simplex(BaseMethod):
     def __init__(self, cfg: omegaconf.DictConfig):
         """Implements Simplex

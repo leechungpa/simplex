@@ -25,8 +25,9 @@ import torch.nn as nn
 from solo.losses.vicreg import vicreg_loss_func
 from solo.methods.base import BaseMethod
 from solo.utils.misc import omegaconf_select
+from solo.utils.eval_batch import evaluate_batch
 
-
+# @evaluate_batch
 class VICReg(BaseMethod):
     def __init__(self, cfg: omegaconf.DictConfig):
         """Implements VICReg (https://arxiv.org/abs/2105.04906)

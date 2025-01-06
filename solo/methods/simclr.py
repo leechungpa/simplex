@@ -32,7 +32,7 @@ class BatchNorm1dNoBias(nn.BatchNorm1d):
         self.bias.requires_grad = False
 
 
-@evaluate_batch
+# @evaluate_batch
 class SimCLR(BaseMethod):
     def __init__(self, cfg: omegaconf.DictConfig):
         """Implements SimCLR (https://arxiv.org/abs/2002.05709).

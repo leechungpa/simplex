@@ -9,7 +9,7 @@ from solo.utils.misc import omegaconf_select
 from solo.utils.eval_batch import evaluate_batch
 
 
-@evaluate_batch
+# @evaluate_batch
 class DCL(BaseMethod):
     def __init__(self, cfg: omegaconf.DictConfig):
         """Implements DCL (Debiased Contrastive Loss).

@@ -47,11 +47,14 @@ def barlow_loss_func(
     z2 = bn(z2)
 
     corr = torch.einsum("bi, bj -> ij", z1, z2) / N
-
-    if dist.is_available() and dist.is_initialized():
-        dist.all_reduce(corr)
-        world_size = dist.get_world_size()
-        corr /= world_size
+    
+    with torch.no_grad():
+        if dist.is_available() and dist.is_initialized():
+            dist.all_reduce(corr)
+            # with torch.no_grad():
+            #     dist.all_reduce(corr)
+            world_size = dist.get_world_size()
+            corr /= world_size
 
     diag = torch.eye(D, device=corr.device)
     cdif = (corr - diag).pow(2)
