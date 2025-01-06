@@ -328,11 +328,9 @@ def prepare_datasets(
         train_dataset = dataset_with_index(DatasetClass)(
             train_data_path,
             train=True,
-            # train = False,
             download=download,
             transform=transform,
         )
-        # print(len(train_dataset))
 
     elif dataset == "stl10":
         train_dataset = dataset_with_index(STL10)(
@@ -396,7 +394,6 @@ def prepare_dataloader(
         train_dataset,
         batch_size=batch_size,
         shuffle=True,
-        # shuffle=False,
         num_workers=num_workers,
         pin_memory=True,
         drop_last=True,
