@@ -27,7 +27,7 @@ from solo.methods.base import BaseMethod
 from solo.utils.misc import omegaconf_select
 from solo.utils.eval_batch import evaluate_batch
 
-@evaluate_batch
+# @evaluate_batch
 class Simplex(BaseMethod):
     def __init__(self, cfg: omegaconf.DictConfig):
         """Implements Simplex
@@ -56,6 +56,16 @@ class Simplex(BaseMethod):
         self.unimodal: bool = cfg.method_kwargs.unimodal
         self.supervised_simplex: bool = cfg.method_kwargs.supervised_simplex
 
+
+        if cfg.backbone.name == "resnet18":
+            if cfg.method_kwargs.proj_hidden_dim != 512:
+                print(f"Warning: proj_hidden_dim={cfg.method_kwargs.proj_hidden_dim} overridden to 512.")
+            cfg.method_kwargs.proj_hidden_dim = 512
+        elif cfg.backbone.name == "resnet50":
+            if cfg.method_kwargs.proj_hidden_dim != 2048:
+                print(f"Warning: proj_hidden_dim={cfg.method_kwargs.proj_hidden_dim} overridden to 2048.")
+            cfg.method_kwargs.proj_hidden_dim = 2048
+        
         proj_hidden_dim: int = cfg.method_kwargs.proj_hidden_dim
         proj_output_dim: int = cfg.method_kwargs.proj_output_dim
 

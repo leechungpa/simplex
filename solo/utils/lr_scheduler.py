@@ -164,3 +164,27 @@ class LinearLR(_LRScheduler):
             res.append(np.maximum(lr * np.minimum(-self.last_epoch * 1. / self.max_epochs + 1., 1.), 0.))
         return res
     
+
+class StepDecayLR(_LRScheduler):
+    """
+    Decays the learning rate by a factor of 0.2 at specified epochs.
+    """
+
+    def __init__(self, optimizer: Optimizer, milestones: List[int], gamma: float = 0.2, last_epoch: int = -1):
+        """
+        Args:
+            optimizer (Optimizer): Wrapped optimizer.
+            milestones (List[int]): List of epoch indices where learning rate should be decayed.
+            gamma (float): Multiplicative factor of learning rate decay. Default: 0.2.
+            last_epoch (int): The index of last epoch. Default: -1.
+        """
+        self.milestones = sorted(milestones)
+        self.gamma = gamma
+        super().__init__(optimizer, last_epoch)
+
+    def get_lr(self) -> List[float]:
+        """
+        Compute the new learning rate for each parameter group.
+        """
+        factor = self.gamma ** sum(self.last_epoch >= milestone for milestone in self.milestones)
+        return [base_lr * factor for base_lr in self.base_lrs]

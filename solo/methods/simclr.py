@@ -32,7 +32,7 @@ class BatchNorm1dNoBias(nn.BatchNorm1d):
         self.bias.requires_grad = False
 
 
-@evaluate_batch
+# @evaluate_batch
 class SimCLR(BaseMethod):
     def __init__(self, cfg: omegaconf.DictConfig):
         """Implements SimCLR (https://arxiv.org/abs/2002.05709).
@@ -48,6 +48,15 @@ class SimCLR(BaseMethod):
 
         self.temperature: float = cfg.method_kwargs.temperature
 
+        if cfg.backbone.name == "resnet18":
+            if cfg.method_kwargs.proj_hidden_dim != 512:
+                print(f"Warning: proj_hidden_dim={cfg.method_kwargs.proj_hidden_dim} overridden to 512.")
+            cfg.method_kwargs.proj_hidden_dim = 512
+        elif cfg.backbone.name == "resnet50":
+            if cfg.method_kwargs.proj_hidden_dim != 2048:
+                print(f"Warning: proj_hidden_dim={cfg.method_kwargs.proj_hidden_dim} overridden to 2048.")
+            cfg.method_kwargs.proj_hidden_dim = 2048
+            
         proj_hidden_dim: int = cfg.method_kwargs.proj_hidden_dim
         proj_output_dim: int = cfg.method_kwargs.proj_output_dim
 

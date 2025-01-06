@@ -4,7 +4,7 @@
     crop_max_scale: 1.0
   horizontal_flip:
     prob: 0.5
-  color_jitter:
+  color_jitter:   # strength = 1
     prob: 0.8
     brightness: 0.8
     contrast: 0.8
@@ -18,5 +18,5 @@
     prob: 0.0
   equalization:
     prob: 0.0
-  crop_size: 32 # For CIFAR10 / CIFAR100
+  crop_size: 224 # For ImageNet
   num_crops: 2
