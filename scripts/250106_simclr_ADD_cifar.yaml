@@ -1,0 +1,95 @@
+defaults:
+  - _self_
+  - augmentations: cifar_241212.yaml
+  - wandb: _private.yaml
+  - override hydra/hydra_logging: disabled
+  - override hydra/job_logging: disabled
+
+hydra:
+  output_subdir: null
+  run:
+    dir: .
+
+###############
+# job name
+name: ""
+name_kwargs:
+  add_method: True
+  add_batch_size: True
+  # For simplex loss
+  add_k: True
+  add_p: False
+  add_lamb: True 
+  # For simclr loss
+  add_temperature: True
+
+###############
+# loss
+method: "simclr"
+method_kwargs:
+  proj_hidden_dim: 512
+  proj_output_dim: 128
+  # For simplex
+  p: 2
+  k: 50000
+  lamb: 1
+  rectify_large_neg_sim: False
+  rectify_small_neg_sim: False
+  # For simclr
+  temperature: 0.3
+  # For barlow_twins
+  scale_loss: 0.1
+
+###############
+# add additional simplex loss
+add_simplex_loss:
+  enabled: True
+  weight: 10
+  p: 2
+  k: 50000
+  # delta: -8
+  rectify_large_neg_sim: False
+  rectify_small_neg_sim: False
+  disable_positive_term: True
+
+###############
+# model and optimizer
+backbone:
+  name: "resnet18" # --- backbone architecture ---
+optimizer:
+  name: "sgd" # "sgd", "lars", "adam", "adamw"
+  batch_size: 128  # 32, 64, 128, 256, 512
+  lr: 1  # Reference: Bridging Mini-Batch and Asymptotic Analysis in Contrastive Learning: From InfoNCE to Kernel-Based Losses
+  lr_method: "linear"   # "square_root", "linear"
+  weight_decay: 1e-6
+  classifier_lr: 0.1
+scheduler:
+  name: "warmup_cosine"
+  warmup_epochs: 10
+max_epochs: 200 # 200, 500, 1000
+
+###############
+# data
+data:
+  dataset: cifar100   # cifar10, cifar100
+  train_path: "/data/files/torchvision"
+  val_path: "/data/files/torchvision"
+  format: "image_folder"
+  num_workers: 4
+
+###############
+# save and resume
+checkpoint:
+  enabled: True
+  dir: "trained_models" 
+  frequency: 50
+auto_resume:
+  enabled: False
+
+###############
+# gpu options
+devices: [0]
+sync_batchnorm: True
+accelerator: "gpu"
+strategy: "ddp"
+precision: 16-mixed
