@@ -7,16 +7,11 @@ from solo.losses.dcl import dcl_loss_func
 from solo.methods.base import BaseMethod
 # from solo.utils.eval_batch import evaluate_batch
 
-class BatchNorm1dNoBias(nn.BatchNorm1d):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.bias.requires_grad = False
-
 
 # @evaluate_batch
-class DHEL(BaseMethod):
+class DCL(BaseMethod):
     def __init__(self, cfg: omegaconf.DictConfig):
-        """Implements DHEL.
+        """Implements DCL.
 
         Extra cfg settings:
             method_kwargs:
@@ -51,7 +46,7 @@ class DHEL(BaseMethod):
             omegaconf.DictConfig: same as the argument, used to avoid errors.
         """
 
-        cfg = super(DHEL, DHEL).add_and_assert_specific_cfg(cfg)
+        cfg = super(DCL, DCL).add_and_assert_specific_cfg(cfg)
 
         assert not omegaconf.OmegaConf.is_missing(cfg, "method_kwargs.proj_output_dim")
         assert not omegaconf.OmegaConf.is_missing(cfg, "method_kwargs.proj_hidden_dim")

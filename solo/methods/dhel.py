@@ -26,11 +26,6 @@ from solo.losses.dhel import dhel_loss_func
 from solo.methods.base import BaseMethod
 # from solo.utils.eval_batch import evaluate_batch
 
-class BatchNorm1dNoBias(nn.BatchNorm1d):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.bias.requires_grad = False
-
 
 # @evaluate_batch
 class DHEL(BaseMethod):
@@ -47,7 +42,6 @@ class DHEL(BaseMethod):
         super().__init__(cfg)
 
         self.temperature: float = cfg.method_kwargs.temperature
-
 
         proj_hidden_dim: int = cfg.method_kwargs.proj_hidden_dim
         proj_output_dim: int = cfg.method_kwargs.proj_output_dim

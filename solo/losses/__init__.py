@@ -34,7 +34,7 @@ from solo.losses.vicreg import vicreg_loss_func
 # from solo.losses.wmse import wmse_loss_func
 from solo.losses.simplex import simplex_loss_func
 from solo.losses.dcl import dcl_loss_func
-from solo.losses.dhel import dhel_loss_func
+# from solo.losses.dhel import dhel_loss_func
 
 __all__ = [
     "barlow_loss_func",
