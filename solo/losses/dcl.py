@@ -22,9 +22,10 @@ def dcl_loss_func(
     gathered_indexes = gathered_indexes.unsqueeze(0)
 
     # negatives
+    pos_mask = indexes.t() == gathered_indexes
     neg_mask = indexes.t() != gathered_indexes
     neg_mask[:, z.size(0) * get_rank() :].fill_diagonal_(0)
-
+    pos = torch.sum(sim * pos_mask, dim=1)
     neg = torch.sum(sim * neg_mask, 1)
-    loss = -torch.mean(torch.log(neg))
+    loss = -torch.mean(torch.log(pos / (pos + neg)))
     return loss
