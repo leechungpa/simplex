@@ -1,9 +1,28 @@
+# Copyright 2023 solo-learn development team.
+
+# Permission is hereby granted, free of charge, to any person obtaining a copy of
+# this software and associated documentation files (the "Software"), to deal in
+# the Software without restriction, including without limitation the rights to use,
+# copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the
+# Software, and to permit persons to whom the Software is furnished to do so,
+# subject to the following conditions:
+
+# The above copyright notice and this permission notice shall be included in all copies
+# or substantial portions of the Software.
+
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED,
+# INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR
+# PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE
+# FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR
+# OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+# DEALINGS IN THE SOFTWARE.
+
 from typing import Any, Dict, List, Sequence
 
 import omegaconf
 import torch
 import torch.nn as nn
-from solo.losses.dcl import dcl_loss_func
+from solo.losses.dhel import dhel_loss_func
 from solo.methods.base import BaseMethod
 # from solo.utils.eval_batch import evaluate_batch
 
@@ -16,7 +35,7 @@ class BatchNorm1dNoBias(nn.BatchNorm1d):
 # @evaluate_batch
 class DHEL(BaseMethod):
     def __init__(self, cfg: omegaconf.DictConfig):
-        """Implements DHEL.
+        """Implements DHEL
 
         Extra cfg settings:
             method_kwargs:
@@ -28,7 +47,8 @@ class DHEL(BaseMethod):
         super().__init__(cfg)
 
         self.temperature: float = cfg.method_kwargs.temperature
-            
+
+
         proj_hidden_dim: int = cfg.method_kwargs.proj_hidden_dim
         proj_output_dim: int = cfg.method_kwargs.proj_output_dim
 
@@ -87,6 +107,21 @@ class DHEL(BaseMethod):
         out.update({"z": z})
         return out
 
+    def multicrop_forward(self, X: torch.tensor) -> Dict[str, Any]:
+        """Performs the forward pass for the multicrop views.
+
+        Args:
+            X (torch.Tensor): batch of images in tensor format.
+
+        Returns:
+            Dict[]: a dict containing the outputs of the parent
+                and the projected features.
+        """
+
+        out = super().multicrop_forward(X)
+        z = self.projector(out["feats"])
+        out.update({"z": z})
+        return out
 
     def training_step(self, batch: Sequence[Any], batch_idx: int) -> torch.Tensor:
         """Training step for SimCLR reusing BaseMethod training step.
@@ -110,12 +145,12 @@ class DHEL(BaseMethod):
         n_augs = self.num_large_crops + self.num_small_crops
         indexes = indexes.repeat(n_augs)
 
-        dcl_loss = dcl_loss_func(
+        dhel_loss = dhel_loss_func(
             z,
             indexes=indexes,
             temperature=self.temperature,
         )
 
-        self.log("train_loss", dcl_loss, on_epoch=True, sync_dist=True)
+        self.log("train_loss", dhel_loss, on_epoch=True, sync_dist=True)
 
-        return dcl_loss + class_loss 
+        return dhel_loss + class_loss   # SimCLR loss + classification loss

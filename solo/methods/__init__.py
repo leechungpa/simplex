@@ -39,8 +39,8 @@ from solo.methods.vicreg import VICReg
 # from solo.methods.wmse import WMSE
 # from solo.methods.all4one import All4One
 from solo.methods.simplex import Simplex
-from solo.methods.dcl import DCL
-from solo.methods.dhel import DHEL
+from solo.methods.dcl_history import DCL
+from solo.methods.dcl import DHEL
 
 
 METHODS = {
