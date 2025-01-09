@@ -39,6 +39,7 @@ from solo.methods.vicreg import VICReg
 # from solo.methods.wmse import WMSE
 # from solo.methods.all4one import All4One
 from solo.methods.simplex import Simplex
+from solo.methods.dcl import DCL
 
 
 METHODS = {
@@ -66,6 +67,7 @@ METHODS = {
     # "wmse": WMSE,
     # "all4one": All4One,
     "simplex": Simplex,
+    "dcl": DCL,
 }
 __all__ = [
     "BarlowTwins",
@@ -90,4 +92,5 @@ __all__ = [
     # "WMSE",
     # "All4One",
     "simplex",
+    "dcl"
 ]

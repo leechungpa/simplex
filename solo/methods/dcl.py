@@ -12,7 +12,7 @@ from solo.utils.misc import omegaconf_select
 # @evaluate_batch
 class DCL(BaseMethod):
     def __init__(self, cfg: omegaconf.DictConfig):
-        """Implements DCL (Debiased Contrastive Loss).
+        """Implements DCL.
 
         Extra cfg settings:
             method_kwargs:
@@ -22,7 +22,7 @@ class DCL(BaseMethod):
         """
         super().__init__(cfg)
 
-        self.tau: float = cfg.method_kwargs.tau
+        self.temperature: float = cfg.method_kwargs.temperature
 
         proj_hidden_dim: int = cfg.method_kwargs.proj_hidden_dim
         proj_output_dim: int = cfg.method_kwargs.proj_output_dim
@@ -30,8 +30,9 @@ class DCL(BaseMethod):
         # projector
         self.projector = nn.Sequential(
             nn.Linear(self.features_dim, proj_hidden_dim),
+            nn.BatchNorm1d(proj_hidden_dim),
             nn.ReLU(),
-            nn.Linear(proj_hidden_dim, proj_output_dim),
+            nn.Linear(proj_hidden_dim, proj_output_dim)
         )
 
     @staticmethod
@@ -49,7 +50,7 @@ class DCL(BaseMethod):
         assert not omegaconf.OmegaConf.is_missing(cfg, "method_kwargs.proj_hidden_dim")
         assert not omegaconf.OmegaConf.is_missing(cfg, "method_kwargs.proj_output_dim")
 
-        cfg.method_kwargs.tau = omegaconf_select(cfg, "method_kwargs.tau", 0.1)
+        assert not omegaconf.OmegaConf.is_missing(cfg, "method_kwargs.temperature")
 
         return cfg
 
@@ -88,12 +89,16 @@ class DCL(BaseMethod):
         Returns:
             torch.Tensor: total loss composed of DCL loss and classification loss.
         """
+        indexes = batch[0]
         out = super().training_step(batch, batch_idx)
         class_loss = out["loss"]
-        z1, z2 = out["z"]
+        # z1, z2 = out["z"]
+        z = torch.cat(out["z"])
 
         # ------- dcl loss -------
-        dcl_loss = dcl_loss_func(z1, z2, tau=self.tau)
+        n_augs = self.num_large_crops + self.num_small_crops
+        indexes = indexes.repeat(n_augs)
+        dcl_loss = dcl_loss_func(z, indexes=indexes, temperature=self.temperature)
 
         self.log("train_loss", dcl_loss, on_epoch=True, sync_dist=True)
 
