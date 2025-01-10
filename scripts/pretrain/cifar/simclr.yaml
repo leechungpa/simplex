@@ -11,30 +11,31 @@ hydra:
   run:
     dir: .
 
-name: "simclr-cifar10" # change here for cifar100
+name: "simclr-cifar100_lr10_1000epoch" # change here for cifar100
 method: "simclr"
 backbone:
   name: "resnet18"
 method_kwargs:
   proj_hidden_dim: 2048
   proj_output_dim: 256
-  temperature: 0.2
+  temperature: 0.3
 data:
-  dataset: cifar10 # change here for cifar100
-  train_path: "./datasets"
-  val_path: "datasets/imagenet100/val"
+  dataset: cifar100 # change here for cifar100
+  train_path: "/data/files/torchvision"
+  val_path: "/data/files/torchvision"
   format: "image_folder"
   num_workers: 4
 optimizer:
-  name: "lars"
-  batch_size: 256
-  lr: 0.4
+  name: "sgd"
+  batch_size: 128
+  lr: 10
   classifier_lr: 0.1
   weight_decay: 1e-4
   kwargs:
-    clip_lr: True
-    eta: 0.02
-    exclude_bias_n_norm: True
+    momentum: 0.9
+    # clip_lr: True
+    # eta: 0.02
+    # exclude_bias_n_norm: True
 scheduler:
   name: "warmup_cosine"
 checkpoint:
