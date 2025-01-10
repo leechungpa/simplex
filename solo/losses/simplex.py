@@ -82,6 +82,7 @@ def simplex_loss_func(
     Returns:
         torch.Tensor: Simplex loss.
     """
+    use_negative_from_same_branch = False
     # gathered_target = gather(target)
 
     # target = target.unsqueeze(0)
@@ -98,6 +99,9 @@ def simplex_loss_func(
 
     neg_mask = ~ pos_mask
 
+    if delta is None:
+        delta = - 1/(k-1)
+
     # Calcuate the loss for both unimodal and bimodal CL
     z1 = F.normalize(z1, dim=1) # ( B, proj_output_dim )
     z2 = F.normalize(z2, dim=1) # ( B, proj_output_dim )
@@ -105,28 +109,36 @@ def simplex_loss_func(
     gathered_z2 = gather(z2)
     similarity = torch.einsum("id, jd -> ij", z1, gathered_z2)
 
-    if not disable_positive_term:
-        similarity[pos_mask] = similarity[pos_mask] - 1
-    
-    if delta is None:
-        similarity[neg_mask] = similarity[neg_mask] + 1/(k-1)
-    if k is None:
-        similarity[neg_mask] = similarity[neg_mask] - delta
-    # similarity[neg_mask] = similarity[neg_mask] - delta
-    # similarity[neg_mask] = similarity[neg_mask] + 1/(k-1)
+    similarity[pos_mask] = similarity[pos_mask] - 1
 
-    if rectify_large_neg_sim:
-        # adjust to 0 if the similarity is greater than -1/(k-1)
-        similarity[neg_mask] = -F.relu(-similarity[neg_mask])
-    if rectify_small_neg_sim:
-        # adjust to 0 if the similarity is simply less than -1/(k-1)
-        similarity[neg_mask] = F.relu(similarity[neg_mask])
+    similarity[neg_mask] = similarity[neg_mask] - delta
 
     similarity = similarity.abs().pow(p)
 
-    loss = 0.0
+    if use_negative_from_same_branch:
+        similarity_z1 = torch.einsum("id, jd -> ij", z1, z1)
+        similarity_z2 = torch.einsum("id, jd -> ij", z2, z2)
+
+        similarity_z1[neg_mask] = similarity_z1[neg_mask] - delta
+        similarity_z2[neg_mask] = similarity_z2[neg_mask] - delta
+
+        similarity_z1 = similarity_z1.abs().pow(p)
+        similarity_z2 = similarity_z2.abs().pow(p)
+
+    # if rectify_large_neg_sim:
+    #     # adjust to 0 if the similarity is greater than -1/(k-1)
+    #     similarity[neg_mask] = -F.relu(-similarity[neg_mask])
+    # if rectify_small_neg_sim:
+    #     # adjust to 0 if the similarity is simply less than -1/(k-1)
+    #     similarity[neg_mask] = F.relu(similarity[neg_mask])
+
+
+    if not use_negative_from_same_branch:
+        loss = similarity[neg_mask].mean() * lamb
+    else:
+        loss = (similarity_z1[neg_mask].mean() + similarity_z2[neg_mask].mean()) / 2 * lamb
+
     if not disable_positive_term:
         loss += similarity[pos_mask].mean()
-    loss += similarity[neg_mask].mean() * lamb
 
     return loss
