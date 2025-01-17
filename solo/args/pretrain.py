@@ -204,4 +204,7 @@ def parse_cfg(cfg: omegaconf.DictConfig):
     if cfg.method == "dhel":
         if omegaconf_select(cfg, "name_kwargs.add_temperature", default=False):
             cfg.name = cfg.name + f"_t{cfg.method_kwargs.temperature}"
+    if cfg.method == "dcl":
+        if omegaconf_select(cfg, "name_kwargs.add_temperature", default=False):
+            cfg.name = cfg.name + f"_t{cfg.method_kwargs.temperature}"
     return cfg
