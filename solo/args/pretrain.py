@@ -207,4 +207,9 @@ def parse_cfg(cfg: omegaconf.DictConfig):
     if cfg.method == "dcl":
         if omegaconf_select(cfg, "name_kwargs.add_temperature", default=False):
             cfg.name = cfg.name + f"_t{cfg.method_kwargs.temperature}"
+    if cfg.method == "simsiam":
+        if omegaconf_select(cfg, "name_kwargs.add_temperature", default=False):
+            cfg.name = cfg.name + f"_t{cfg.method_kwargs.temperature}"
+        if omegaconf_select(cfg, "name_kwargs.add_pred_hidden_dim", default=False):
+            cfg.name = cfg.name + f"_pred{cfg.method_kwargs.pred_hidden_dim}"
     return cfg

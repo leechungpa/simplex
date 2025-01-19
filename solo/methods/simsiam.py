@@ -25,8 +25,9 @@ import torch.nn as nn
 import torch.nn.functional as F
 from solo.losses.simsiam import simsiam_loss_func
 from solo.methods.base import BaseMethod
+from solo.utils.eval_batch import evaluate_batch
 
-
+@evaluate_batch
 class SimSiam(BaseMethod):
     def __init__(self, cfg: omegaconf.DictConfig):
         """Implements SimSiam (https://arxiv.org/abs/2011.10566).
