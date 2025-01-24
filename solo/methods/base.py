@@ -57,7 +57,7 @@ from solo.utils.lr_scheduler import LinearWarmupCosineAnnealingLR
 from solo.utils.metrics import accuracy_at_k, weighted_mean
 from solo.utils.misc import omegaconf_select, remove_bias_and_norm_from_weight_decay
 from solo.utils.momentum import MomentumUpdater, initialize_momentum_params
-from solo.losses.simplex import simplex_loss_func
+from solo.losses.simplex import simplex_loss_func, lamb_scheduler
 
 
 def static_lr(
@@ -259,6 +259,7 @@ class BaseMethod(pl.LightningModule):
 
         # For our research
         self.add_simplex_loss: dict = cfg.add_simplex_loss
+        self.current_lamb = self.add_simplex_loss.weight
         self.evaluate_batch: dict = cfg.evaluate_batch
 
         # for performance
@@ -316,10 +317,12 @@ class BaseMethod(pl.LightningModule):
         # default empty parameters for adding_simplex_loss
         cfg.add_simplex_loss = omegaconf_select(cfg, "add_simplex_loss", {})
         cfg.add_simplex_loss.enabled = omegaconf_select(cfg, "add_simplex_loss.enabled", False)
-        cfg.add_simplex_loss.weight = omegaconf_select(cfg, "add_simplex_loss.weight", 1.0)
+        cfg.add_simplex_loss.weight = omegaconf_select(cfg, "add_simplex_loss.weight", 30)
         cfg.add_simplex_loss.k = omegaconf_select(cfg, "add_simplex_loss.k", None)
         cfg.add_simplex_loss.p = omegaconf_select(cfg, "add_simplex_loss.p", 2)
         cfg.add_simplex_loss.lamb = omegaconf_select(cfg, "add_simplex_loss.lamb", 1)
+        cfg.add_simplex_loss.lamb_scheduling = omegaconf_select(cfg, "add_simplex_loss.lamb_scheduling", False)
+        cfg.add_simplex_loss.lamb_decay_rate = omegaconf_select(cfg, "add_simplex_loss.lamb_decay_rate", 0.9)
         cfg.add_simplex_loss.rectify_large_neg_sim = omegaconf_select(cfg, "add_simplex_loss.rectify_large_neg_sim", False)
         cfg.add_simplex_loss.rectify_small_neg_sim = omegaconf_select(cfg, "add_simplex_loss.rectify_small_neg_sim", False)
         # cfg.add_simplex_loss.unimodal = omegaconf_select(cfg, "add_simplex_loss.unimodal", False)
@@ -564,9 +567,10 @@ class BaseMethod(pl.LightningModule):
                 # unimodal=self.add_simplex_loss.unimodal,
                 disable_positive_term=self.add_simplex_loss.disable_positive_term
             )
-            
+
+            # print(self.current_lamb)
             metrics["simplex_loss"] = simplex_loss
-            outs["loss"] = outs["loss"] + simplex_loss*self.add_simplex_loss.weight
+            outs["loss"] = outs["loss"] + simplex_loss * self.current_lamb
 
         self.log_dict(metrics, on_epoch=True, sync_dist=True)
 
@@ -653,6 +657,19 @@ class BaseMethod(pl.LightningModule):
         self.log_dict(log, sync_dist=True)
 
         self.validation_step_outputs.clear()
+    
+    def on_train_epoch_end(self):
+        if self.add_simplex_loss.lamb_scheduling:
+            self.current_lamb = lamb_scheduler(
+                initial_lamb=self.add_simplex_loss.weight,
+                decay_rate=self.add_simplex_loss.lamb_decay_rate,
+                epoch=self.current_epoch,
+                step_size=self.add_simplex_loss.step_size,
+            )
+        else:
+            self.current_lamb = self.add_simplex_loss.weight
+        print(self.current_lamb)
+        self.log("current_lamb", self.current_lamb, on_epoch=True, sync_dist=True)
 
 
 class BaseMomentumMethod(BaseMethod):
@@ -875,7 +892,7 @@ class BaseMomentumMethod(BaseMethod):
                 max_steps=self.trainer.estimated_stepping_batches,
             )
         self.last_step = self.trainer.global_step
-
+        
     def validation_step(
         self,
         batch: List[torch.Tensor],

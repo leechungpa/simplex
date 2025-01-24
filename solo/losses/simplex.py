@@ -2,6 +2,19 @@ import torch
 import torch.nn.functional as F
 from solo.utils.misc import gather
 
+def lamb_scheduler(initial_lamb: float, decay_rate: float, epoch: int, step_size: int = 1) -> float:
+    """
+    Args:
+        initial_lamb (float): Initial value of lambda.
+        decay_rate (float): Decay rate for lambda.
+        epoch (int): Current epoch.
+        step_size (int): Number of epochs before applying the decay.
+    """
+    if epoch % step_size == 0:
+        return initial_lamb * (decay_rate ** (epoch // step_size))
+    return initial_lamb * (decay_rate ** ((epoch - (epoch % step_size)) // step_size))
+
+
 
 def simplex_loss_func_general(
     z1: torch.Tensor, z2: torch.Tensor,
