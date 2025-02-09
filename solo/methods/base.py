@@ -558,7 +558,7 @@ class BaseMethod(pl.LightningModule):
             z1, z2 = outs["z"]
             simplex_loss = simplex_loss_func(
                 z1, z2,
-                target=None, 
+                target=targets, 
                 k=self.add_simplex_loss.k,
                 p=self.add_simplex_loss.p, lamb=1,
                 # delta=self.add_simplex_loss.delta,

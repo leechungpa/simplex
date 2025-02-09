@@ -96,31 +96,35 @@ def simplex_loss_func(
         torch.Tensor: Simplex loss.
     """
     use_negative_from_same_branch = False
-    # gathered_target = gather(target)
 
-    # target = target.unsqueeze(0)
-    # gathered_target = gathered_target.unsqueeze(0)
+        # Calcuate the loss for both unimodal and bimodal CL
+    z1 = F.normalize(z1, dim=1) # ( B, proj_output_dim )
+    z2 = F.normalize(z2, dim=1) # ( B, proj_output_dim )
 
-    # pos_mask = target.t() == gathered_target
+    gathered_z2 = gather(z2)
+    gathered_target = gather(target)
+
+    similarity = torch.einsum("id, jd -> ij", z1, gathered_z2)
+
+    target = target.unsqueeze(0)
+    gathered_target = gathered_target.unsqueeze(0)
+    
+    pos_mask = target.t() == gathered_target
+    pos_mask.fill_diagonal_(0)
+
+    neg_mask = target.t() != gathered_target
 
     if delta is None and k is None:
         raise ValueError("Either `delta` or `k` must be provided.")
     if delta is not None and k is not None:
         raise ValueError("Provide only one of `delta` or `k`, not both.")
     
-    pos_mask = torch.eye(z1.shape[0], dtype=torch.bool)
+    # pos_mask = torch.eye(z1.shape[0], dtype=torch.bool)
 
-    neg_mask = ~ pos_mask
+    # neg_mask = ~ pos_mask
 
     if delta is None:
         delta = - 1/(k-1)
-
-    # Calcuate the loss for both unimodal and bimodal CL
-    z1 = F.normalize(z1, dim=1) # ( B, proj_output_dim )
-    z2 = F.normalize(z2, dim=1) # ( B, proj_output_dim )
-
-    gathered_z2 = gather(z2)
-    similarity = torch.einsum("id, jd -> ij", z1, gathered_z2)
 
     similarity[pos_mask] = similarity[pos_mask] - 1
 
