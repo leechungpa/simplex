@@ -119,9 +119,6 @@ def simplex_loss_func(
     if delta is not None and k is not None:
         raise ValueError("Provide only one of `delta` or `k`, not both.")
     
-    # pos_mask = torch.eye(z1.shape[0], dtype=torch.bool)
-
-    # neg_mask = ~ pos_mask
 
     if delta is None:
         delta = - 1/(k-1)
@@ -141,13 +138,6 @@ def simplex_loss_func(
 
         similarity_z1 = similarity_z1.abs().pow(p)
         similarity_z2 = similarity_z2.abs().pow(p)
-
-    # if rectify_large_neg_sim:
-    #     # adjust to 0 if the similarity is greater than -1/(k-1)
-    #     similarity[neg_mask] = -F.relu(-similarity[neg_mask])
-    # if rectify_small_neg_sim:
-    #     # adjust to 0 if the similarity is simply less than -1/(k-1)
-    #     similarity[neg_mask] = F.relu(similarity[neg_mask])
 
 
     if not use_negative_from_same_branch:

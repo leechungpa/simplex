@@ -25,9 +25,7 @@ import torch.nn as nn
 from solo.losses.simplex import simplex_loss_func
 from solo.methods.base import BaseMethod
 from solo.utils.misc import omegaconf_select
-from solo.utils.eval_batch import evaluate_batch
 
-@evaluate_batch
 class Simplex(BaseMethod):
     def __init__(self, cfg: omegaconf.DictConfig):
         """Implements Simplex
@@ -77,7 +75,6 @@ class Simplex(BaseMethod):
             nn.Linear(proj_hidden_dim, proj_output_dim),
         )
 
-        # finetune 모드 추가 (default는 False)
         self.finetune = cfg.method_kwargs.get("finetune", False)
 
     @staticmethod

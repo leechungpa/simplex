@@ -29,27 +29,12 @@ import torch.nn.functional as F
 from torch.optim.lr_scheduler import MultiStepLR
 
 from solo.backbones import (
-    # convnext_base,
-    # convnext_large,
-    # convnext_small,
-    # convnext_tiny,
-    # poolformer_m36,
-    # poolformer_m48,
-    # poolformer_s12,
-    # poolformer_s24,
-    # poolformer_s36,
     resnet18,
     resnet50,
-    # swin_base,
-    # swin_large,
-    # swin_small,
-    # swin_tiny,
     vit_base,
     vit_large,
     vit_small,
     vit_tiny,
-    # wide_resnet28w2,
-    # wide_resnet28w8,
 )
 from solo.utils.knn import WeightedKNNClassifier
 from solo.utils.lars import LARS
@@ -79,21 +64,6 @@ class BaseMethod(pl.LightningModule):
         "vit_small": vit_small,
         "vit_base": vit_base,
         "vit_large": vit_large,
-        # "swin_tiny": swin_tiny,
-        # "swin_small": swin_small,
-        # "swin_base": swin_base,
-        # "swin_large": swin_large,
-        # "poolformer_s12": poolformer_s12,
-        # "poolformer_s24": poolformer_s24,
-        # "poolformer_s36": poolformer_s36,
-        # "poolformer_m36": poolformer_m36,
-        # "poolformer_m48": poolformer_m48,
-        # "convnext_tiny": convnext_tiny,
-        # "convnext_small": convnext_small,
-        # "convnext_base": convnext_base,
-        # "convnext_large": convnext_large,
-        # "wide_resnet28w2": wide_resnet28w2,
-        # "wide_resnet28w8": wide_resnet28w8,
     }
     _OPTIMIZERS = {
         "sgd": torch.optim.SGD,
