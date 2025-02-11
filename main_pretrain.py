@@ -44,19 +44,6 @@ from solo.utils.misc import make_contiguous, omegaconf_select
 
 import shutil
 
-try:
-    from solo.data.dali_dataloader import PretrainDALIDataModule, build_transform_pipeline_dali
-except ImportError:
-    _dali_avaliable = False
-else:
-    _dali_avaliable = True
-
-try:
-    from solo.utils.auto_umap import AutoUMAP
-except ImportError:
-    _umap_available = False
-else:
-    _umap_available = True
 
 
 @hydra.main(version_base="1.2", config_path="./scripts")
@@ -86,10 +73,7 @@ def main(cfg: DictConfig):
     elif cfg.data.dataset in ["imagenet100", "imagenet"] and cfg.data.val_path is None:
         val_loader = None
     else:
-        if cfg.data.format == "dali":
-            val_data_format = "image_folder"
-        else:
-            val_data_format = cfg.data.format
+        val_data_format = cfg.data.format
 
         _, val_loader = prepare_data_classification(
             cfg.data.dataset,
@@ -100,65 +84,32 @@ def main(cfg: DictConfig):
             num_workers=cfg.data.num_workers,
         )
 
-    # pretrain dataloader
-    if cfg.data.format == "dali":
-        assert (
-            _dali_avaliable
-        ), "Dali is not currently avaiable, please install it first with pip3 install .[dali]."
-        pipelines = []
-        for aug_cfg in cfg.augmentations:
-            pipelines.append(
-                NCropAugmentation(
-                    build_transform_pipeline_dali(
-                        cfg.data.dataset, aug_cfg, dali_device=cfg.dali.device
-                    ),
-                    aug_cfg.num_crops,
-                )
+    
+    pipelines = []
+    for aug_cfg in cfg.augmentations:
+        pipelines.append(
+            NCropAugmentation(
+                build_transform_pipeline(cfg.data.dataset, aug_cfg), aug_cfg.num_crops
             )
-        transform = FullTransformPipeline(pipelines)
-
-        dali_datamodule = PretrainDALIDataModule(
-            dataset=cfg.data.dataset,
-            train_data_path=cfg.data.train_path,
-            transforms=transform,
-            num_large_crops=cfg.data.num_large_crops,
-            num_small_crops=cfg.data.num_small_crops,
-            num_workers=cfg.data.num_workers,
-            batch_size=cfg.optimizer.batch_size,
-            no_labels=cfg.data.no_labels,
-            data_fraction=cfg.data.fraction,
-            dali_device=cfg.dali.device,
-            encode_indexes_into_labels=cfg.dali.encode_indexes_into_labels,
         )
-        dali_datamodule.val_dataloader = lambda: val_loader
-    else:
-        pipelines = []
-        for aug_cfg in cfg.augmentations:
-            pipelines.append(
-                NCropAugmentation(
-                    build_transform_pipeline(cfg.data.dataset, aug_cfg), aug_cfg.num_crops
-                )
-            )
-        transform = FullTransformPipeline(pipelines)
+    transform = FullTransformPipeline(pipelines)
 
-        if cfg.debug_augmentations:
-            print("Transforms:")
-            print(transform)
+    if cfg.debug_augmentations:
+        print("Transforms:")
+        print(transform)
 
-        train_dataset = prepare_datasets(
-            cfg.data.dataset,
-            transform,
-            train_data_path=cfg.data.train_path,
-            data_format=cfg.data.format,
-            no_labels=cfg.data.no_labels,
-            data_fraction=cfg.data.fraction,
-        )
-        train_loader = prepare_dataloader(
-            train_dataset, batch_size=cfg.optimizer.batch_size, num_workers=cfg.data.num_workers
-        )
+    train_dataset = prepare_datasets(
+        cfg.data.dataset,
+        transform,
+        train_data_path=cfg.data.train_path,
+        data_format=cfg.data.format,
+        no_labels=cfg.data.no_labels,
+        data_fraction=cfg.data.fraction,
+    )
+    train_loader = prepare_dataloader(
+        train_dataset, batch_size=cfg.optimizer.batch_size, num_workers=cfg.data.num_workers
+    )
 
-    # 1.7 will deprecate resume_from_checkpoint, but for the moment
-    # the argument is the same, but we need to pass it as ckpt_path to trainer.fit
     ckpt_path, wandb_run_id = None, None
     if cfg.auto_resume.enabled and cfg.resume_from_checkpoint is None:
         auto_resumer = AutoResumer(
@@ -194,17 +145,6 @@ def main(cfg: DictConfig):
         OmegaConf.save(config=cfg, f=config_output_path)
 
 
-    if omegaconf_select(cfg, "auto_umap.enabled", False):
-        assert (
-            _umap_available
-        ), "UMAP is not currently avaiable, please install it first with [umap]."
-        auto_umap = AutoUMAP(
-            cfg.name,
-            logdir=os.path.join(cfg.auto_umap.dir, cfg.method),
-            frequency=cfg.auto_umap.frequency,
-        )
-        callbacks.append(auto_umap)
-
     # wandb logging
     if cfg.wandb.enabled:
         wandb_logger = WandbLogger(
@@ -218,7 +158,6 @@ def main(cfg: DictConfig):
         wandb_logger.watch(model, log="gradients", log_freq=100)
         wandb_logger.log_hyperparams(OmegaConf.to_container(cfg))
 
-        # lr logging
         lr_monitor = LearningRateMonitor(logging_interval="step")
         callbacks.append(lr_monitor)
 
@@ -239,12 +178,7 @@ def main(cfg: DictConfig):
         }
     )
     trainer = Trainer(**trainer_kwargs)
-
-    if cfg.data.format == "dali":
-        trainer.fit(model, ckpt_path=ckpt_path, datamodule=dali_datamodule)
-    else:
-        trainer.fit(model, train_loader, val_loader, ckpt_path=ckpt_path)
-
+    trainer.fit(model, train_loader, val_loader, ckpt_path=ckpt_path)
 
 if __name__ == "__main__":
     main()

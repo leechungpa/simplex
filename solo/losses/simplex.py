@@ -2,6 +2,19 @@ import torch
 import torch.nn.functional as F
 from solo.utils.misc import gather
 
+def lamb_scheduler(initial_lamb: float, decay_rate: float, epoch: int, step_size: int = 1) -> float:
+    """
+    Args:
+        initial_lamb (float): Initial value of lambda.
+        decay_rate (float): Decay rate for lambda.
+        epoch (int): Current epoch.
+        step_size (int): Number of epochs before applying the decay.
+    """
+    if epoch % step_size == 0:
+        return initial_lamb * (decay_rate ** (epoch // step_size))
+    return initial_lamb * (decay_rate ** ((epoch - (epoch % step_size)) // step_size))
+
+
 
 def simplex_loss_func_general(
     z1: torch.Tensor, z2: torch.Tensor,
@@ -61,7 +74,7 @@ def simplex_loss_func(
     p: int, lamb: float,
     delta: float = None, k: int = None,
     rectify_large_neg_sim: bool = False, rectify_small_neg_sim: bool = False,
-    unimodal: bool = True,
+    # unimodal: bool = True,
     disable_positive_term: bool = False,
 ) -> torch.Tensor:
     """Computes Simplex loss given batch of projected features z1 from view 1 and
@@ -82,51 +95,57 @@ def simplex_loss_func(
     Returns:
         torch.Tensor: Simplex loss.
     """
-    # gathered_target = gather(target)
+    use_negative_from_same_branch = False
 
-    # target = target.unsqueeze(0)
-    # gathered_target = gathered_target.unsqueeze(0)
+        # Calcuate the loss for both unimodal and bimodal CL
+    z1 = F.normalize(z1, dim=1) # ( B, proj_output_dim )
+    z2 = F.normalize(z2, dim=1) # ( B, proj_output_dim )
 
-    # pos_mask = target.t() == gathered_target
+    gathered_z2 = gather(z2)
+    gathered_target = gather(target)
+
+    similarity = torch.einsum("id, jd -> ij", z1, gathered_z2)
+
+    target = target.unsqueeze(0)
+    gathered_target = gathered_target.unsqueeze(0)
+    
+    pos_mask = target.t() == gathered_target
+    pos_mask.fill_diagonal_(0)
+
+    neg_mask = target.t() != gathered_target
 
     if delta is None and k is None:
         raise ValueError("Either `delta` or `k` must be provided.")
     if delta is not None and k is not None:
         raise ValueError("Provide only one of `delta` or `k`, not both.")
     
-    pos_mask = torch.eye(z1.shape[0], dtype=torch.bool)
 
-    neg_mask = ~ pos_mask
-
-    # Calcuate the loss for both unimodal and bimodal CL
-    z1 = F.normalize(z1, dim=1) # ( B, proj_output_dim )
-    z2 = F.normalize(z2, dim=1) # ( B, proj_output_dim )
-
-    gathered_z2 = gather(z2)
-    similarity = torch.einsum("id, jd -> ij", z1, gathered_z2)
-
-    if not disable_positive_term:
-        similarity[pos_mask] = similarity[pos_mask] - 1
-    
     if delta is None:
-        similarity[neg_mask] = similarity[neg_mask] + 1/(k-1)
-    if k is None:
-        similarity[neg_mask] = similarity[neg_mask] - delta
-    # similarity[neg_mask] = similarity[neg_mask] - delta
-    # similarity[neg_mask] = similarity[neg_mask] + 1/(k-1)
+        delta = - 1/(k-1)
 
-    if rectify_large_neg_sim:
-        # adjust to 0 if the similarity is greater than -1/(k-1)
-        similarity[neg_mask] = -F.relu(-similarity[neg_mask])
-    if rectify_small_neg_sim:
-        # adjust to 0 if the similarity is simply less than -1/(k-1)
-        similarity[neg_mask] = F.relu(similarity[neg_mask])
+    similarity[pos_mask] = similarity[pos_mask] - 1
+
+    similarity[neg_mask] = similarity[neg_mask] - delta
 
     similarity = similarity.abs().pow(p)
 
-    loss = 0.0
+    if use_negative_from_same_branch:
+        similarity_z1 = torch.einsum("id, jd -> ij", z1, z1)
+        similarity_z2 = torch.einsum("id, jd -> ij", z2, z2)
+
+        similarity_z1[neg_mask] = similarity_z1[neg_mask] - delta
+        similarity_z2[neg_mask] = similarity_z2[neg_mask] - delta
+
+        similarity_z1 = similarity_z1.abs().pow(p)
+        similarity_z2 = similarity_z2.abs().pow(p)
+
+
+    if not use_negative_from_same_branch:
+        loss = similarity[neg_mask].mean() * lamb
+    else:
+        loss = (similarity_z1[neg_mask].mean() + similarity_z2[neg_mask].mean()) / 2 * lamb
+
     if not disable_positive_term:
         loss += similarity[pos_mask].mean()
-    loss += similarity[neg_mask].mean() * lamb
 
     return loss

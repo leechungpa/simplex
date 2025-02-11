@@ -1,7 +1,7 @@
 defaults:
   - _self_
-  - augmentations: cifar_241212.yaml
-  - wandb: _private.yaml
+  - augmentations: cifar.yaml
+  - wandb: private.yaml
   - override hydra/hydra_logging: disabled
   - override hydra/job_logging: disabled
 
@@ -16,86 +16,68 @@ name: ""
 name_kwargs:
   add_method: True
   add_batch_size: True
-  # For simplex loss
   add_k: False
   add_p: False
   add_lamb: True 
-  # For simlcr loss
   add_temperature: True
 
 ###############
 # loss
-method: "simclr" # "simplex", "simclr", "barlow_twins"
+method: "simclr"
 method_kwargs:
   proj_hidden_dim: 512
   proj_output_dim: 128
-  # For simplex
-  p: 2
-  k: 50000
-  lamb: 7
-  unimodal: False
-  rectify_large_neg_sim: False
-  rectify_small_neg_sim: False
-  # For simclr
-  temperature: 0.5
-  # For barlow_twins
-  scale_loss: 0.1
+  temperature: 0.2
 
 ###############
 # add additional simplex loss
 add_simplex_loss:
-  enabled: False
-  weight: 1
+  enabled: True
+  weight: 30
   p: 2
   k: 50000
   rectify_small_neg_sim: False
+  rectify_large_neg_sim: False
   disable_positive_term: True
 
 ###############
 # model and optimizer
 backbone:
-  name: "resnet18" # "resnet18", "resnet50"
+  name: "resnet18" # --- backbone architecture ---
 optimizer:
   name: "sgd" # "sgd", "lars", "adam", "adamw"
-  batch_size: 256 # 32, 64, 128, 256, 512
-  lr: 0.125   # Reference: i-Mix: A Domain-Agnostic Strategy for Contrastive Representation Learning
+  batch_size: 128  # --- batch size options: 32, 64, 128, 256, 512 ---
+  lr: 0.3  
   lr_method: "linear"   # "square_root", "linear"
   weight_decay: 1e-4
   classifier_lr: 0.1
 scheduler:
   name: "warmup_cosine"
   warmup_epochs: 10
-max_epochs: 500 # 200, 400, 1000
+max_epochs: 200 # --- training epochs: 200, 500, 1000 ---
 
 ###############
 # data
 data:
   dataset: cifar100   # cifar10, cifar100
-  train_path: "/data/files/torchvision"
-  val_path: "/data/files/torchvision"
+  train_path: # --- path to training data ---
+  val_path: # --- path to validation data ---
   format: "image_folder"
   num_workers: 2
-
-###############
-# evaluation in batch
-evaluate_batch:
- enable: True
- type: "all"
- skip_before_optm: False
 
 ###############
 # save and resume
 checkpoint:
   enabled: True
-  dir: "trained_models" 
+  dir: # --- path to save checkpoints ---
   frequency: 50
 auto_resume:
   enabled: False
 
 ###############
 # gpu options
-devices: [0]
+devices: [0]   # --- specify GPU devices ---
 sync_batchnorm: True
 accelerator: "gpu"
 strategy: "ddp"
-precision: 32-true
+precision: 16-mixed

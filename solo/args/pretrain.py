@@ -201,4 +201,21 @@ def parse_cfg(cfg: omegaconf.DictConfig):
     if cfg.method == "simclr":
         if omegaconf_select(cfg, "name_kwargs.add_temperature", default=False):
             cfg.name = cfg.name + f"_t{cfg.method_kwargs.temperature}"
+    if cfg.method == "dhel":
+        if omegaconf_select(cfg, "name_kwargs.add_temperature", default=False):
+            cfg.name = cfg.name + f"_t{cfg.method_kwargs.temperature}"
+    if cfg.method == "dcl":
+        if omegaconf_select(cfg, "name_kwargs.add_temperature", default=False):
+            cfg.name = cfg.name + f"_t{cfg.method_kwargs.temperature}"
+    if cfg.method == "simsiam":
+        if omegaconf_select(cfg, "name_kwargs.add_pred_hidden_dim", default=False):
+            cfg.name = cfg.name + f"_pred{cfg.method_kwargs.pred_hidden_dim}"
+    if cfg.method == "vicreg":
+        if omegaconf_select(cfg, "name_kwargs.add_sim_loss_weight", default=False):
+            cfg.name = cfg.name + f"_sim{cfg.method_kwargs.sim_loss_weight}"
+        if omegaconf_select(cfg, "name_kwargs.add_var_loss_weight", default=False):
+            cfg.name = cfg.name + f"_var{cfg.method_kwargs.var_loss_weight}"
+        if omegaconf_select(cfg, "name_kwargs.add_cov_loss_weight", default=False):
+            cfg.name = cfg.name + f"_cov{cfg.method_kwargs.cov_loss_weight}"
+
     return cfg

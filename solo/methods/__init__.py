@@ -17,28 +17,12 @@
 # OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 # DEALINGS IN THE SOFTWARE.
 
-from solo.methods.barlow_twins import BarlowTwins
 from solo.methods.base import BaseMethod
-from solo.methods.byol import BYOL
-from solo.methods.deepclusterv2 import DeepClusterV2
-from solo.methods.dino import DINO
 from solo.methods.linear import LinearModel
-from solo.methods.mae import MAE
-from solo.methods.mocov2plus import MoCoV2Plus
-from solo.methods.mocov3 import MoCoV3
-from solo.methods.nnbyol import NNBYOL
-from solo.methods.nnclr import NNCLR
-from solo.methods.nnsiam import NNSiam
-from solo.methods.ressl import ReSSL
 from solo.methods.simclr import SimCLR
-from solo.methods.simsiam import SimSiam
-from solo.methods.supcon import SupCon
-from solo.methods.swav import SwAV
-from solo.methods.vibcreg import VIbCReg
-from solo.methods.vicreg import VICReg
-from solo.methods.wmse import WMSE
-from solo.methods.all4one import All4One
 from solo.methods.simplex import Simplex
+from solo.methods.dcl import DCL
+from solo.methods.dhel import DHEL
 
 
 METHODS = {
@@ -46,48 +30,16 @@ METHODS = {
     "base": BaseMethod,
     "linear": LinearModel,
     # methods
-    "barlow_twins": BarlowTwins,
-    "byol": BYOL,
-    "deepclusterv2": DeepClusterV2,
-    "dino": DINO,
-    "mae": MAE,
-    "mocov2plus": MoCoV2Plus,
-    "mocov3": MoCoV3,
-    "nnbyol": NNBYOL,
-    "nnclr": NNCLR,
-    "nnsiam": NNSiam,
-    "ressl": ReSSL,
     "simclr": SimCLR,
-    "simsiam": SimSiam,
-    "supcon": SupCon,
-    "swav": SwAV,
-    "vibcreg": VIbCReg,
-    "vicreg": VICReg,
-    "wmse": WMSE,
-    "all4one": All4One,
     "simplex": Simplex,
+    "dcl": DCL,
+    "dhel": DHEL,
 }
 __all__ = [
-    "BarlowTwins",
-    "BYOL",
     "BaseMethod",
-    "DeepClusterV2",
-    "DINO",
-    "MAE",
     "LinearModel",
-    "MoCoV2Plus",
-    "MoCoV3",
-    "NNBYOL",
-    "NNCLR",
-    "NNSiam",
-    "ReSSL",
     "SimCLR",
-    "SimSiam",
-    "SupCon",
-    "SwAV",
-    "VIbCReg",
-    "VICReg",
-    "WMSE",
-    "All4One",
     "simplex",
+    "dcl",
+    "dhel",
 ]
