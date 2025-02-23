@@ -30,15 +30,11 @@ method_kwargs:
   temperature: 0.2
 
 ###############
-# add additional simplex loss
-add_simplex_loss:
+add_vrn_loss_term:
   enabled: True
   weight: 30
   p: 2
   k: 50000
-  rectify_small_neg_sim: False
-  rectify_large_neg_sim: False
-  disable_positive_term: True
 
 ###############
 # model and optimizer

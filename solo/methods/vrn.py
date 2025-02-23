@@ -22,19 +22,12 @@ from typing import Any, List, Sequence
 import omegaconf
 import torch
 import torch.nn as nn
-from solo.losses.simplex import simplex_loss_func
+from solo.losses.vrn import add_vrn_loss_term
 from solo.methods.base import BaseMethod
 from solo.utils.misc import omegaconf_select
 
-class Simplex(BaseMethod):
+class VRN(BaseMethod):
     def __init__(self, cfg: omegaconf.DictConfig):
-        """Implements Simplex
-
-        Extra cfg settings:
-            method_kwargs:
-                proj_hidden_dim (int): number of neurons of the hidden layers of the projector.
-                proj_output_dim (int): number of dimensions of projected features.
-        """
         super().__init__(cfg)
 
         if isinstance(cfg.method_kwargs.k, (int, float)):
@@ -43,16 +36,11 @@ class Simplex(BaseMethod):
             self.parm_k = cfg.data.num_instances
         else:
             raise ValueError("'method_kwargs.k' is needed.")
-        print(f"Simplex loss k={self.parm_k}")
 
         self.parm_p: int = cfg.method_kwargs.p
         self.parm_lamb: int = cfg.method_kwargs.lamb
 
-        self.rectify_large_neg_sim: bool = cfg.method_kwargs.rectify_large_neg_sim
-        self.rectify_small_neg_sim: bool = cfg.method_kwargs.rectify_small_neg_sim
 
-        # self.unimodal: bool = cfg.method_kwargs.unimodal
-        self.supervised_simplex: bool = cfg.method_kwargs.supervised_simplex
 
 
         if cfg.backbone.name == "resnet18":
@@ -88,7 +76,7 @@ class Simplex(BaseMethod):
             omegaconf.DictConfig: same as the argument, used to avoid errors.
         """
 
-        cfg = super(Simplex, Simplex).add_and_assert_specific_cfg(cfg)
+        cfg = super(VRN, VRN).add_and_assert_specific_cfg(cfg)
 
         assert not omegaconf.OmegaConf.is_missing(cfg, "method_kwargs.proj_hidden_dim")
         assert not omegaconf.OmegaConf.is_missing(cfg, "method_kwargs.proj_output_dim")
@@ -98,11 +86,7 @@ class Simplex(BaseMethod):
 
         cfg.method_kwargs.k = omegaconf_select(cfg, "method_kwargs.k", None)
 
-        cfg.method_kwargs.rectify_large_neg_sim = omegaconf_select(cfg, "method_kwargs.rectify_large_neg_sim", False)
-        cfg.method_kwargs.rectify_small_neg_sim = omegaconf_select(cfg, "method_kwargs.rectify_small_neg_sim", False)
 
-        # cfg.method_kwargs.unimodal = omegaconf_select(cfg, "method_kwargs.unimodal", True)
-        cfg.method_kwargs.supervised_simplex = omegaconf_select(cfg, "method_kwargs.supervised_simplex", False)
 
         return cfg
 
@@ -143,24 +127,19 @@ class Simplex(BaseMethod):
         Returns:
             torch.Tensor: total loss composed of Barlow loss and classification loss.
         """ 
-        if self.supervised_simplex:
-            target = batch[-1]
-        else:
-            target = batch[0]
+
+        target = batch[0]
 
         out = super().training_step(batch, batch_idx)
 
         class_loss = out["loss"]
         z1, z2 = out["z"]
 
-        # ------- simplex loss -------
-        simplex_loss = simplex_loss_func(
+        vrn_loss = add_vrn_loss_term(
             z1, z2, target=target,
             k=self.parm_k, p=self.parm_p, lamb=self.parm_lamb,
-            rectify_large_neg_sim=self.rectify_large_neg_sim, rectify_small_neg_sim=self.rectify_small_neg_sim,
-            # unimodal=self.unimodal
         )
 
-        self.log("train_loss", simplex_loss, on_epoch=True, sync_dist=True)
+        self.log("train_loss", vrn_loss, on_epoch=True, sync_dist=True)
 
-        return simplex_loss + class_loss
+        return vrn_loss + class_loss

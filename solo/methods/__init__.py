@@ -20,7 +20,7 @@
 from solo.methods.base import BaseMethod
 from solo.methods.linear import LinearModel
 from solo.methods.simclr import SimCLR
-from solo.methods.simplex import Simplex
+from solo.methods.vrn import VRN
 from solo.methods.dcl import DCL
 from solo.methods.dhel import DHEL
 
@@ -31,7 +31,7 @@ METHODS = {
     "linear": LinearModel,
     # methods
     "simclr": SimCLR,
-    "simplex": Simplex,
+    "vrn": VRN,
     "dcl": DCL,
     "dhel": DHEL,
 }
@@ -39,7 +39,7 @@ __all__ = [
     "BaseMethod",
     "LinearModel",
     "SimCLR",
-    "simplex",
+    "vrn",
     "dcl",
     "dhel",
 ]
