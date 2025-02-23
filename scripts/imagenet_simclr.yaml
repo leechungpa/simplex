@@ -1,7 +1,7 @@
 defaults:
   - _self_
-  - augmentations: cifar_241212.yaml
-  - wandb: _private.yaml
+  - augmentations: imagenet.yaml
+  - wandb: private.yaml
   - override hydra/hydra_logging: disabled
   - override hydra/job_logging: disabled
 
@@ -10,65 +10,53 @@ hydra:
   run:
     dir: .
 
-
 ###############
 # job name
 name: ""
 name_kwargs:
   add_method: True
   add_batch_size: True
-  # For simplex loss
-  add_k: True
+  add_k: False
   add_p: False
   add_lamb: True 
-  # For simclr loss
-  add_temperature: True
+  add_temperature: True 
 
 ###############
 # loss
-method: "dcl" # "simplex", "simclr", "barlow_twins"
+method: "simclr" 
 method_kwargs:
-  proj_hidden_dim: 512
+  proj_hidden_dim: 2048
   proj_output_dim: 128
-  temperature: 0.1
-
+  temperature: 0.3
 
 ###############
-# add additional simplex loss
-add_simplex_loss:
+add_vrn_loss_term:
   enabled: True
-  weight: 30
+  weight: 40
   p: 2
-  k: 50000
-  # delta: -8
-  rectify_large_neg_sim: False
-  rectify_small_neg_sim: False
-  disable_positive_term: True
+  k: 130000
 
 ###############
 # model and optimizer
 backbone:
-  name: "resnet18" # --- backbone architecture ---
+  name: "resnet50"  # --- backbone architecture ---
 optimizer:
   name: "sgd" # "sgd", "lars", "adam", "adamw"
-  batch_size: 128  # 32, 64, 128, 256, 512
-  lr: 0.3  # Reference: Bridging Mini-Batch and Asymptotic Analysis in Contrastive Learning: From InfoNCE to Kernel-Based Losses
+  batch_size: 128 # --- batch size options: 32, 64, 128, 256, 512 ---
+  lr: 0.1  
   lr_method: "linear"   # "square_root", "linear"
-  # weight_decay: 0
   weight_decay: 1e-4
   classifier_lr: 0.1
 scheduler:
   name: "warmup_cosine"
   warmup_epochs: 10
-  # warmup_epochs: 0
-max_epochs: 200 # 200, 500, 1000
-
+max_epochs: 200  # --- training epochs: 200, 500, 1000 ---
 ###############
 # data
 data:
-  dataset: cifar100   # cifar10, cifar100
-  train_path: /data/kerv/simplex/data
-  val_path: /data/kerv/simplex/data
+  dataset: imagenet100
+  train_path: # --- path to training data ---
+  val_path: # --- path to validation data ---
   format: "image_folder"
   num_workers: 4
 
@@ -83,14 +71,14 @@ evaluate_batch:
 # save and resume
 checkpoint:
   enabled: True
-  dir: /data/kerv/simplex/trained_models
+  dir: # --- path to save checkpoints ---
   frequency: 50
 auto_resume:
   enabled: False
 
 ###############
 # gpu options
-devices: [0]
+devices: [0]   # --- specify GPU devices ---
 sync_batchnorm: True
 accelerator: "gpu"
 strategy: "ddp"

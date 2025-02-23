@@ -17,40 +17,53 @@
 # OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 # DEALINGS IN THE SOFTWARE.
 
-from typing import Any, Dict, List, Sequence
+from typing import Any, List, Sequence
 
 import omegaconf
 import torch
 import torch.nn as nn
-from solo.losses.simclr import simclr_loss_func
+from solo.losses.vrn import add_vrn_loss_term
 from solo.methods.base import BaseMethod
-# from solo.utils.eval_batch import evaluate_batch
+from solo.utils.misc import omegaconf_select
 
-# @evaluate_batch
-class SupCon(BaseMethod):
+class VRN(BaseMethod):
     def __init__(self, cfg: omegaconf.DictConfig):
-        """Implements SupCon (https://arxiv.org/abs/2004.11362).
-
-        Extra cfg settings:
-            method_kwargs:
-                proj_output_dim (int): number of dimensions of the projected features.
-                proj_hidden_dim (int): number of neurons in the hidden layers of the projector.
-                temperature (float): temperature for the softmax in the contrastive loss.
-        """
-
         super().__init__(cfg)
 
-        self.temperature: float = cfg.method_kwargs.temperature
+        if isinstance(cfg.method_kwargs.k, (int, float)):
+            self.parm_k: int = cfg.method_kwargs.k
+        elif "num_instances" in cfg.data.keys():
+            self.parm_k = cfg.data.num_instances
+        else:
+            raise ValueError("'method_kwargs.k' is needed.")
 
+        self.parm_p: int = cfg.method_kwargs.p
+        self.parm_lamb: int = cfg.method_kwargs.lamb
+
+
+
+
+        if cfg.backbone.name == "resnet18":
+            if cfg.method_kwargs.proj_hidden_dim != 512:
+                print(f"Warning: proj_hidden_dim={cfg.method_kwargs.proj_hidden_dim} overridden to 512.")
+            cfg.method_kwargs.proj_hidden_dim = 512
+        elif cfg.backbone.name == "resnet50":
+            if cfg.method_kwargs.proj_hidden_dim != 2048:
+                print(f"Warning: proj_hidden_dim={cfg.method_kwargs.proj_hidden_dim} overridden to 2048.")
+            cfg.method_kwargs.proj_hidden_dim = 2048
+        
         proj_hidden_dim: int = cfg.method_kwargs.proj_hidden_dim
         proj_output_dim: int = cfg.method_kwargs.proj_output_dim
 
         # projector
         self.projector = nn.Sequential(
             nn.Linear(self.features_dim, proj_hidden_dim),
+            nn.BatchNorm1d(proj_hidden_dim),
             nn.ReLU(),
             nn.Linear(proj_hidden_dim, proj_output_dim),
         )
+
+        self.finetune = cfg.method_kwargs.get("finetune", False)
 
     @staticmethod
     def add_and_assert_specific_cfg(cfg: omegaconf.DictConfig) -> omegaconf.DictConfig:
@@ -63,17 +76,23 @@ class SupCon(BaseMethod):
             omegaconf.DictConfig: same as the argument, used to avoid errors.
         """
 
-        cfg = super(SupCon, SupCon).add_and_assert_specific_cfg(cfg)
+        cfg = super(VRN, VRN).add_and_assert_specific_cfg(cfg)
 
-        assert not omegaconf.OmegaConf.is_missing(cfg, "method_kwargs.proj_output_dim")
         assert not omegaconf.OmegaConf.is_missing(cfg, "method_kwargs.proj_hidden_dim")
-        assert not omegaconf.OmegaConf.is_missing(cfg, "method_kwargs.temperature")
+        assert not omegaconf.OmegaConf.is_missing(cfg, "method_kwargs.proj_output_dim")
+
+        assert not omegaconf.OmegaConf.is_missing(cfg, "method_kwargs.p")
+        assert not omegaconf.OmegaConf.is_missing(cfg, "method_kwargs.lamb")
+
+        cfg.method_kwargs.k = omegaconf_select(cfg, "method_kwargs.k", None)
+
+
 
         return cfg
 
     @property
     def learnable_params(self) -> List[dict]:
-        """Adds projector parameters to the parent's learnable parameters.
+        """Adds projector parameters to parent's learnable parameters.
 
         Returns:
             List[dict]: list of learnable parameters.
@@ -82,40 +101,23 @@ class SupCon(BaseMethod):
         extra_learnable_params = [{"name": "projector", "params": self.projector.parameters()}]
         return super().learnable_params + extra_learnable_params
 
-    def forward(self, X: torch.tensor) -> Dict[str, Any]:
+    def forward(self, X):
         """Performs the forward pass of the backbone and the projector.
 
         Args:
             X (torch.Tensor): a batch of images in the tensor format.
 
         Returns:
-            Dict[str, Any]:
-                a dict containing the outputs of the parent
-                and the projected features.
+            Dict[str, Any]: a dict containing the outputs of the parent and the projected features.
         """
 
         out = super().forward(X)
-        z = self.projector(out["feats"])
-        return {**out, "z": z}
-
-    def multicrop_forward(self, X: torch.tensor) -> Dict[str, Any]:
-        """Performs the forward pass for the multicrop views.
-
-        Args:
-            X (torch.Tensor): batch of images in tensor format.
-
-        Returns:
-            Dict[]: a dict containing the outputs of the parent
-                and the projected features.
-        """
-
-        out = super().multicrop_forward(X)
         z = self.projector(out["feats"])
         out.update({"z": z})
         return out
 
     def training_step(self, batch: Sequence[Any], batch_idx: int) -> torch.Tensor:
-        """Training step for SupCon reusing BaseMethod training step.
+        """Training step for Barlow Twins reusing BaseMethod training step.
 
         Args:
             batch (Sequence[Any]): a batch of data in the format of [img_indexes, [X], Y], where
@@ -123,25 +125,21 @@ class SupCon(BaseMethod):
             batch_idx (int): index of the batch.
 
         Returns:
-            torch.Tensor: total loss composed of SupCon loss and classification loss.
-        """
+            torch.Tensor: total loss composed of Barlow loss and classification loss.
+        """ 
 
-        targets = batch[-1]
+        target = batch[0]
 
         out = super().training_step(batch, batch_idx)
+
         class_loss = out["loss"]
-        z = torch.cat(out["z"])
+        z1, z2 = out["z"]
 
-        # ------- contrastive loss -------
-        n_augs = self.num_large_crops + self.num_small_crops
-        targets = targets.repeat(n_augs)
-
-        nce_loss = simclr_loss_func(
-            z,
-            indexes=targets,
-            temperature=self.temperature,
+        vrn_loss = add_vrn_loss_term(
+            z1, z2, target=target,
+            k=self.parm_k, p=self.parm_p, lamb=self.parm_lamb,
         )
 
-        self.log("train_nce_loss", nce_loss, on_epoch=True, sync_dist=True)
+        self.log("train_loss", vrn_loss, on_epoch=True, sync_dist=True)
 
-        return nce_loss + class_loss
+        return vrn_loss + class_loss

@@ -40,13 +40,6 @@ from solo.utils.auto_resumer import AutoResumer
 from solo.utils.checkpointer import Checkpointer
 from solo.utils.misc import make_contiguous
 
-# try:
-#     from solo.data.dali_dataloader import ClassificationDALIDataModule
-# except ImportError:
-#     _dali_avaliable = False
-# else:
-#     _dali_avaliable = True
-
 
 @hydra.main(version_base="1.2", config_path="scripts")
 def main(cfg: DictConfig):
@@ -112,10 +105,6 @@ def main(cfg: DictConfig):
     if not cfg.performance.disable_channel_last:
         model = model.to(memory_format=torch.channels_last)
 
-    # if cfg.data.format == "dali":
-    #     val_data_format = "image_folder"
-    # else:
-    #     val_data_format = cfg.data.format
     val_data_format = cfg.data.format
 
     train_loader, val_loader = prepare_data(
@@ -128,24 +117,7 @@ def main(cfg: DictConfig):
         auto_augment=cfg.auto_augment,
     )
 
-    # if cfg.data.format == "dali":
-    #     assert (
-    #         _dali_avaliable
-    #     ), "Dali is not currently avaiable, please install it first with pip3 install .[dali]."
 
-    #     assert not cfg.auto_augment, "Auto augmentation is not supported with Dali."
-
-    #     dali_datamodule = ClassificationDALIDataModule(
-    #         dataset=cfg.data.dataset,
-    #         train_data_path=cfg.data.train_path,
-    #         val_data_path=cfg.data.val_path,
-    #         num_workers=cfg.data.num_workers,
-    #         batch_size=cfg.optimizer.batch_size,
-    #         data_fraction=cfg.data.fraction,
-    #         dali_device=cfg.dali.device,
-    #     )
-
-    #     dali_datamodule.val_dataloader = lambda: val_loader
 
     ckpt_path, wandb_run_id = None, None
     if cfg.auto_resume.enabled and cfg.resume_from_checkpoint is None:
@@ -207,11 +179,6 @@ def main(cfg: DictConfig):
         }
     )
     trainer = Trainer(**trainer_kwargs)
-
-    # if cfg.data.format == "dali":
-    #     trainer.fit(model, ckpt_path=ckpt_path, datamodule=dali_datamodule)
-    # else:
-    #     trainer.fit(model, train_loader, val_loader, ckpt_path=ckpt_path)
     trainer.fit(model, train_loader, val_loader, ckpt_path=ckpt_path)
 
 
