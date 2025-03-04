@@ -20,13 +20,13 @@
 
 from solo.losses.simclr import simclr_loss_func
 
-from solo.losses.simplex import simplex_loss_func
+from solo.losses.vrn import add_vrn_loss_term
 from solo.losses.dcl import dcl_loss_func
 from solo.losses.dhel import dhel_loss_func
 
 __all__ = [
     "simclr_loss_func",
-    "simplex_loss_func",
+    "add_vrn_loss_term",
     "dcl_loss_func",
     "dhel_loss_func"
 ]

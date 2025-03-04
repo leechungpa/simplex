@@ -12,32 +12,29 @@ hydra:
 
 ###############
 # job name
-name: ""
+name: ""   # experiment name
 name_kwargs:
-  add_method: True
-  add_batch_size: True
-  add_k: False
-  add_p: False
-  add_lamb: True 
-  add_temperature: True 
+  add_method: True   # Include the training method in the experiment name
+  add_batch_size: True   # Include the batch size in the experiment name
+  add_k: False   # Exclude parameter `k` from the experiment name
+  add_p: False   # Exclude parameter `p` from the experiment name
+  add_lamb: True   # Include lambda (`lamb`) in the experiment name
+  add_temperature: True   # Include temperature in the experiment name
 
 ###############
 # loss
-method: "simclr" 
+method: ""   # Self-supervised learning method to use (e.g., SimCLR, DCL, etc.)
 method_kwargs:
   proj_hidden_dim: 2048
   proj_output_dim: 128
-  temperature: 0.3
+  temperature: 0.3  # Temperature parameter
 
 ###############
-# add additional simplex loss
-add_simplex_loss:
+add_vrn_loss_term:
   enabled: True
-  weight: 40
+  weight: 40   # Weight assigned to the variance regularization term
   p: 2
   k: 130000
-  rectify_small_neg_sim: False
-  disable_positive_term: True
 
 ###############
 # model and optimizer
@@ -47,13 +44,14 @@ optimizer:
   name: "sgd" # "sgd", "lars", "adam", "adamw"
   batch_size: 128 # --- batch size options: 32, 64, 128, 256, 512 ---
   lr: 0.1  
-  lr_method: "linear"   # "square_root", "linear"
+  lr_method: "linear"   # Learning rate scaling method: "linear" or "square_root"
   weight_decay: 1e-4
   classifier_lr: 0.1
 scheduler:
-  name: "warmup_cosine"
+  name: "warmup_cosine"   # Learning rate scheduler
   warmup_epochs: 10
-max_epochs: 200  # --- training epochs: 200, 500, 1000 ---
+max_epochs: 200  # --- Total number of training epochs: 200, 500, 1000 ---
+
 ###############
 # data
 data:
