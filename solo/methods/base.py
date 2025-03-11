@@ -42,7 +42,7 @@ from solo.utils.lr_scheduler import LinearWarmupCosineAnnealingLR
 from solo.utils.metrics import accuracy_at_k, weighted_mean
 from solo.utils.misc import omegaconf_select, remove_bias_and_norm_from_weight_decay
 from solo.utils.momentum import MomentumUpdater, initialize_momentum_params
-from solo.losses.vrn import add_vrn_loss_term
+from solo.losses.vrn import vrn_loss_func
 
 
 def static_lr(
@@ -283,14 +283,28 @@ class BaseMethod(pl.LightningModule):
         # default empty parameters for method-specific kwargs
         cfg.method_kwargs = omegaconf_select(cfg, "method_kwargs", {})
 
+        # default empty parameters for VRN
         cfg.add_vrn_loss_term = omegaconf_select(cfg, "add_vrn_loss_term", {})
         cfg.add_vrn_loss_term.enabled = omegaconf_select(cfg, "add_vrn_loss_term.enabled", False)
         cfg.add_vrn_loss_term.weight = omegaconf_select(cfg, "add_vrn_loss_term.weight", 30)
-        cfg.add_vrn_loss_term.k = omegaconf_select(cfg, "add_vrn_loss_term.k", None)
         cfg.add_vrn_loss_term.p = omegaconf_select(cfg, "add_vrn_loss_term.p", 2)
-        cfg.add_vrn_loss_term.lamb = omegaconf_select(cfg, "add_vrn_loss_term.lamb", 1)
-        cfg.add_vrn_loss_term.delta = omegaconf_select(cfg, "add_vrn_loss_term.delta", None)
-        # default empty parameters for our research
+        if cfg.add_vrn_loss_term.enabled:
+            # ToDo. Move to omegaconf_select or elsewhere
+            k = omegaconf_select(cfg, "add_vrn_loss_term.k", None)
+            delta = omegaconf_select(cfg, "add_vrn_loss_term.delta", None)
+
+            if (delta is None) and (k is None):
+                raise ValueError("Either `delta` or `k` must be provided.")
+            elif (delta is None) and (k is not None):
+                delta = - 1/(k-1)
+            elif (delta is not None) and (k is None):
+                pass # delta = delta
+            elif (delta is not None) and (k is not None):
+                raise ValueError("Provide only one of `delta` or `k`, not both.")
+            
+            cfg.add_vrn_loss_term.delta = delta
+
+        # default empty parameters for TBD
         cfg.evaluate_batch = omegaconf_select(cfg, "evaluate_batch", {})
         cfg.evaluate_batch.enabled = omegaconf_select(cfg, "evaluate_batch.enabled", False)
         cfg.evaluate_batch.type = omegaconf_select(cfg, "evaluate_batch.type", "all")
@@ -518,15 +532,15 @@ class BaseMethod(pl.LightningModule):
 
         if self.add_vrn_loss_term.enabled:
             z1, z2 = outs["z"]
-            vrn_loss_term = add_vrn_loss_term(
+            vrn_loss = vrn_loss_func(
                 z1, z2,
-                target=indexes, 
-                k=self.add_vrn_loss_term.k,
-                p=self.add_vrn_loss_term.p, lamb=1
+                index_or_target=indexes, 
+                delta=self.add_vrn_loss_term.delta,
+                p=self.add_vrn_loss_term.p
             )
 
-            metrics["vrn_loss_term"] = vrn_loss_term
-            outs["loss"] = outs["loss"] + vrn_loss_term * self.add_vrn_loss_term.weight
+            metrics["vrn_loss_term"] = vrn_loss
+            outs["loss"] = outs["loss"] + vrn_loss * self.add_vrn_loss_term.weight
 
         self.log_dict(metrics, on_epoch=True, sync_dist=True)
 

@@ -1,7 +1,6 @@
 defaults:
   - _self_
-  - augmentations: cifar.yaml
-  - wandb: private.yaml
+  - augmentations: imagenet.yaml
   - override hydra/hydra_logging: disabled
   - override hydra/job_logging: disabled
 
@@ -10,56 +9,59 @@ hydra:
   run:
     dir: .
 
+wandb:
+  enabled: True
+  entity: # --- username ---
+  project: "vrn"
+  offline: false
+
 ###############
 # job name
 name: ""   # experiment name
 name_kwargs:
-  add_method: True   # Include the training method in the experiment name
-  add_batch_size: True   # Include the batch size in the experiment name
+  add_method: False   # Include the training method in the experiment name
   add_k: False   # Exclude parameter `k` from the experiment name
-  add_p: False   # Exclude parameter `p` from the experiment name
-  add_lamb: True   # Include lambda (`lamb`) in the experiment name
-  add_temperature: True   # Include temperature in the experiment name
+  add_batch_size: False   # Include the batch size in the experiment name
+  add_temperature: False   # Include temperature in the experiment name
 
 ###############
 # loss
-method: ""   # Self-supervised learning method to use (e.g., SimCLR, DCL, etc.)
+method: # Self-supervised learning method to use: 'simclr', 'dcl', 'dhel'
 method_kwargs:
-  proj_hidden_dim: 512
+  proj_hidden_dim: 2048
   proj_output_dim: 128
-  temperature: 0.2   # Temperature parameter
+  temperature: # Temperature parameter
 
 ###############
 add_vrn_loss_term:
   enabled: True
   weight: 30   # Weight assigned to the variance regularization term
-  p: 2
-  k: 50000
+  k: 130000
 
 ###############
 # model and optimizer
 backbone:
-  name: "resnet18" # --- backbone architecture ---
+  name: "resnet50"
 optimizer:
   name: "sgd" # "sgd", "lars", "adam", "adamw"
-  batch_size: 128  # --- batch size options: 32, 64, 128, 256, 512 ---
-  lr: 0.3  
+  batch_size: 128  # Batch size options
+  lr: 0.1  
   lr_method: "linear"   # Learning rate scaling method: "linear" or "square_root"
   weight_decay: 1e-4
   classifier_lr: 0.1
 scheduler:
   name: "warmup_cosine"   # Learning rate scheduler
   warmup_epochs: 10
-max_epochs: 200 # --- Total number of training epochs: 200, 500, 1000 ---
+max_epochs: 200
 
 ###############
 # data
 data:
-  dataset: cifar100   # cifar10, cifar100
+  dataset: imagenet100
   train_path: # --- path to training data ---
   val_path: # --- path to validation data ---
   format: "image_folder"
-  num_workers: 2
+  num_workers: 4
 
 ###############
 # save and resume

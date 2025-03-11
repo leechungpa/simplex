@@ -6,30 +6,27 @@ This repository implements **Variance-Reduction for Negative-pair similarity (VR
 
 ## Pretraining
 
-### Pretraining on CIFAR
-
 ```bash
+# Pretraining on CIFAR
 CUDA_VISIBLE_DEVICES=0 python3 main_pretrain.py \
-    --config-path # --- path to config directory --- \
-    --config-name cifar.yaml
+    --config-name pretrain_cifar.yaml
+
+# Pretraining on ImageNet
+CUDA_VISIBLE_DEVICES=0 python3 main_pretrain.py \
+    --config-name pretrain_imagenet.yaml
 ```
 
-
-### Pretraining on ImageNet
-
-```bash
-CUDA_VISIBLE_DEVICES=0 python3 main_pretrain.py \
-    --config-path # --- path to config directory --- \
-    --config-name imagenet.yaml
-```
-
-## Linear Evaluation
-After pretraining, perform linear evaluation using:
+## Linear Probing
+After pretraining, perform linear probing using:
 
 ```bash
+# Evaluation on CIFAR
 CUDA_VISIBLE_DEVICES=0 python3 main_linear.py \
-    --config-path # --- path to config directory --- \
-    --config-name _eval_linear.yaml
+    --config-name linear_cifar.yaml
+
+# Evaluation on ImageNet
+CUDA_VISIBLE_DEVICES=0 python3 main_linear.py \
+    --config-name linear_imagebet.yaml
 ```
 
 
@@ -40,6 +37,5 @@ The VRN loss term can be enabled in the configuration file:
 add_vrn_loss_term:
   enabled: True
   weight: 30
-  p: 2  
   k: # Number of negative pairs considered 
 ```
