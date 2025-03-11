@@ -52,7 +52,7 @@ optimizer:
 scheduler:
   name: "warmup_cosine"   # Learning rate scheduler
   warmup_epochs: 10
-max_epochs: 200 # Total number of training epochs
+max_epochs: 200
 
 ###############
 # data
@@ -62,13 +62,6 @@ data:
   val_path: # --- path to validation data ---
   format: "image_folder"
   num_workers: 4
-
-###############
-# evaluation in batch
-evaluate_batch:
- enable: False
- type: "all"
- skip_before_optm: False
 
 ###############
 # save and resume
