@@ -31,11 +31,9 @@ def vrn_loss_func(
 
     similarity = torch.einsum("id, jd -> ij", z1, gathered_z2)
 
-    target = target.unsqueeze(0)
+    index_or_target = index_or_target.unsqueeze(0)
     gathered_index_or_target = gathered_index_or_target.unsqueeze(0)
 
     neg_mask = index_or_target.t() != gathered_index_or_target
 
-    similarity[neg_mask] = (similarity[neg_mask] - delta).abs().pow(p)
-
-    return similarity[neg_mask].mean()
+    return (similarity[neg_mask] - delta).abs().pow(p).mean()

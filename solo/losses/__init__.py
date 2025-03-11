@@ -17,16 +17,15 @@
 # OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 # DEALINGS IN THE SOFTWARE.
 
+from solo.losses.vrn import vrn_loss_func
 
 from solo.losses.simclr import simclr_loss_func
-
-from solo.losses.vrn import add_vrn_loss_term
 from solo.losses.dcl import dcl_loss_func
 from solo.losses.dhel import dhel_loss_func
 
 __all__ = [
     "simclr_loss_func",
-    "add_vrn_loss_term",
+    "vrn_loss_func",
     "dcl_loss_func",
     "dhel_loss_func"
 ]
