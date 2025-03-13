@@ -8,9 +8,9 @@ import torchvision.transforms as transforms
 from torchvision.datasets import CIFAR100, CIFAR10, Caltech101, Flowers102
 from torch.utils.data import ConcatDataset, random_split, Subset
 
-from solo.data_transfer.cub200 import CUB
-from solo.data_transfer.dogs import Dogs
-from solo.data_transfer.datasets import Pets, Food101, DTD, SUN397, MIT67
+from solo.data.downstream.cub200 import CUB
+from solo.data.downstream.dogs import Dogs
+from solo.data.downstream.datasets import Pets, Food101, DTD, SUN397, MIT67
 
 
 def setup_seed(seed=0):
@@ -56,7 +56,7 @@ def get_transfer_dataset(args):
         num_classes = 100
 
     elif args.data == 'sun397':
-        trn_indices, val_indices = torch.load('./solo/data_transfer/split/sun397.pth')
+        trn_indices, val_indices = torch.load('./solo/data/downstream/split/sun397.pth')
         trainval = SUN397(root = os.path.join(args.data_dir, 'SUN397'), split='Training', transform=transform)
         train_data = Subset(trainval, trn_indices)
         val_data   = Subset(trainval, val_indices)
@@ -79,7 +79,7 @@ def get_transfer_dataset(args):
     elif args.data == 'caltech101':
         transform.transforms.insert(0, transforms.Lambda(lambda img: img.convert('RGB')))
         D = Caltech101(root=args.data_dir, transform=transform)
-        trn_indices, val_indices, tst_indices = torch.load('./solo/data_transfer/split/caltech101.pth')
+        trn_indices, val_indices, tst_indices = torch.load('./solo/data/downstream/split/caltech101.pth')
         train_data = Subset(D, trn_indices)
         val_data = Subset(D, val_indices)
         trainval = ConcatDataset([train_data, val_data])
@@ -108,7 +108,7 @@ def get_transfer_dataset(args):
         num_classes = 200
 
     elif args.data == 'dog':
-        trn_indices, val_indices = torch.load('./solo/data_transfer/split/dog.pth')
+        trn_indices, val_indices = torch.load('./solo/data/downstream/split/dog.pth')
         trainval = Dogs(args.data_dir, train=True, transform=transform)
         train_data = Subset(trainval, trn_indices)
         val_data = Subset(trainval, val_indices)
